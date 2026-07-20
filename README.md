@@ -1,6 +1,6 @@
 # ZAFU Paper Formatter Skill
 
-一个面向毕业论文的 Codex Skill，支持从 DOCX、Markdown 和纯文本输入进行格式审计、风险分类与可追踪的 Word 排版修复。
+一个面向浙江农林大学毕业论文的智能排版 Codex Skill，支持 DOCX、Markdown 和 TXT 统一导入，提供格式审计、学校模板适配、风险分级、可追踪的 Word/OOXML 修复及结果验证。
 
 An auditable Codex Skill for formatting graduation theses from DOCX, Markdown, and plain-text sources.
 
@@ -60,4 +60,3 @@ The bundled ZAFU profile and template-related assets are intended for thesis-for
 ## Status
 
 This is an early public release. Review generated documents and validation reports before formal submission.
-
