@@ -188,3 +188,9 @@ uv run python scripts\run_regression_fixtures.py --profile zafu_2022 --output-di
 当前版本属于早期公开版本。Skill 采用保守策略：只自动执行高置信度、低风险的排版操作；复杂或可能破坏文档结构的修改会进入人工确认清单。
 
 仓库中的 ZAFU profile 和模板相关资源用于论文排版研究及个人学术用途。进行更广泛的转载或再分发前，请确认学校模板的相关要求。
+
+## 📜 许可证
+
+本项目的源代码、Skill 指令、配置和原创文档采用 [Apache License 2.0](LICENSE)。
+
+浙江农林大学官方论文模板及其派生资源不属于 Apache-2.0 授权范围，其权利归相应权利人所有，详见 [NOTICE](NOTICE)。本项目是独立社区项目，不是浙江农林大学官方项目，也不代表学校的认可或维护。
