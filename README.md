@@ -1,4 +1,6 @@
-# ZAFU Paper Formatter Skill
+<h1 align="center">浙江农林大学本科毕业论文智能排版 Skill</h1>
+
+<h3 align="center">ZAFU Paper Formatter Skill</h3>
 
 > 🎓 **把论文丢给 AI，喝杯咖啡，回来检查排版结果。**<br>
 > ✨ **Word、Markdown、TXT 都能接，三线表、公式、目录、字体、页码一次整理。**
