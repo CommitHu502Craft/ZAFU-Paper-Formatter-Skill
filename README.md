@@ -1,25 +1,160 @@
 # ZAFU Paper Formatter Skill
 
-一个面向浙江农林大学毕业论文的智能排版 Codex Skill，支持 DOCX、Markdown 和 TXT 统一导入，提供格式审计、学校模板适配、风险分级、可追踪的 Word/OOXML 修复及结果验证。
+> 🎓 **把论文丢给 AI，喝杯咖啡，回来检查排版结果。**<br>
+> ✨ **Word、Markdown、TXT 都能接，三线表、公式、目录、字体、页码一次整理。**
 
-An auditable Codex Skill for formatting graduation theses from DOCX, Markdown, and plain-text sources.
+这是一个面向**浙江农林大学本科生**打造的毕业论文智能排版 Skill，也是一个尽量让“小白不用学排版、不用写代码、不用反复调 Word”的论文交付助手。它可以由 Codex、Claude Code、Cursor 等能够访问本地文件和运行命令的 AI Agent 使用，帮助你把格式混乱的论文初稿整理为结构清楚、规则统一、能够继续编辑的 Word 文档。🚀
 
-## Features
+不会 Python？没用过 Git？看不懂命令行？都没关系。🙌 你可以直接提交 Word（`.docx`）、Markdown（`.md`）或纯文本（`.txt`）论文。文档只需具有基本可辨认的章节和小标题，不要求提前设置严格的 Word 样式；把文件路径和提示词交给 AI Agent，即可开始排版。
 
-- 使用统一的 ThesisIR 语义模型处理 DOCX、Markdown 和 TXT
-- 基于学校 profile 执行格式检查和低风险自动修复
-- 保留正文措辞以及不可变的封面、诚信页内容
-- 检查样式、编号、分页、页眉页脚、图表、公式和参考文献
-- 输出预检、修复计划、执行记录和验证报告
-- 对复杂或高风险操作要求人工确认
+## 🌟 主要功能
 
-## Requirements
+### 📊 1. 普通表格自动整理为三线表
 
-- Python 3.11 or newer
-- [uv](https://docs.astral.sh/uv/)
-- Optional: LibreOffice and Poppler for rendered PDF/page-preview validation
+- 识别 Word、Markdown 中的普通表格；
+- 按论文规范设置顶线、表头分隔线和底线；
+- 清理多余竖线和内部边框；
+- 统一单元格水平、垂直对齐；
+- 整理表题位置和题注样式；
+- 对复杂合并单元格或不确定表头保留人工确认，不强行破坏原表。
 
-## Setup
+### 🧮 2. LaTeX 转为 Word 原生公式
+
+- 识别行内公式和独立公式；
+- 将可识别的 LaTeX/纯文本公式转换为 Word OMML 原生公式；
+- 转换后的公式可以在 Word 中继续编辑，不是截图；
+- 尽量保留正文与公式混排关系；
+- 无法可靠转换的复杂公式会保留原文并进入检查清单。
+
+### 📚 3. 标题层级识别与标准目录
+
+- 从编号、文字模式和上下文识别一级、二级、三级标题；
+- 兼容未设置 Word 标题样式的普通文本标题；
+- 整理混用的手动编号和自动编号；
+- 将普通文本目录或已有目录整理为 Word 标准目录；
+- 在论文规定位置插入目录域，避免重复插入多个目录；
+- 自动目录生成后，可在 Word/WPS 中更新域获得最终页码。
+
+### 🪪 4. 封面页与诚信页安全插入
+
+- 从学校模板插入封面页和诚信页；
+- 尽可能保持模板原始版式、图片和页面结构；
+- 封面和诚信页作为受保护区域，后续修复不会随意重排；
+- 默认不猜测、不填写、不修改论文题目、姓名、学号、学院、指导教师等个人信息；
+- 避免模板图片与正文图片同名时发生覆盖。
+
+### 🔤 5. 全文中英文字体和字号统一
+
+- 分别处理中文字体与西文字体；
+- 统一正文、各级标题、摘要、关键词、图题、表题、参考文献等区域的字号；
+- 清理直接格式覆盖造成的“看似同一格式、实际字号不同”；
+- 统一行距、首行缩进、段前段后间距和段落对齐；
+- 清理用空格手工模拟的首行缩进，避免出现双重缩进。
+
+### 📄 6. 页面、分页、页眉和页码整理
+
+- 检查纸张大小、页边距和页面方向；
+- 识别封面、目录/摘要、正文等不同分节；
+- 处理章节分页和孤立标题；
+- 检查页眉页脚绑定与分节继承关系；
+- 支持目录/摘要罗马页码与正文阿拉伯页码重新起算等模板规则；
+- 对复杂或污染严重的分节结构先报告风险，不盲目重建。
+
+### 🖼️ 7. 图片、图题、表题与交叉结构检查
+
+- 识别正文中的图片和内嵌对象；
+- 让过宽图片适配正文可打印区域；
+- 统一图片所在段落的对齐方式；
+- 识别图题、表题并应用规范样式；
+- 检查缺失媒体和损坏的图片关系；
+- 浮动图片、文本框、SmartArt、OLE 和嵌入式 Excel 会进入人工处理清单。
+
+### 📖 8. 摘要、关键词与参考文献整理
+
+- 识别中文摘要、英文摘要、关键词和参考文献章节；
+- 兼容“参考文献（示例）”等带说明文字的标题；
+- 统一参考文献段落、悬挂缩进和编号外观；
+- 检查数字引用中的重复标签、混合区间和无法匹配项；
+- 引文体系转换属于高风险操作，默认只生成计划，不偷偷改写论文引用。
+
+### 🔄 9. Word、Markdown、TXT 任意格式进入排版
+
+- `.docx`、`.md`、`.txt` 使用同一个入口；
+- 三种输入都会转换到统一的 ThesisIR 论文语义模型；
+- Markdown 表格、图片语法、标题和公式可以进入 Word 构建流程；
+- TXT 不要求严格标记，只需章节和小标题大致可辨认；
+- 输入结构存在歧义时，Skill 会列出人工确认项，而不是自行编造章节关系。
+
+### 🛡️ 10. 先审计、再修复、最后验证
+
+- 排版前自动判断文档属于模板接近、普通论文或高风险污染文档；
+- 根据风险选择仅审计、保守修复或重建模式；
+- 每次修改都生成修复计划和执行记录；
+- 默认保留原文措辞，不把“排版”变成“改写论文”；
+- 输出新 DOCX，不覆盖原论文；
+- 检查 DOCX 包结构、样式、编号、图片关系和规则符合情况；
+- 环境支持时可渲染 PDF 和关键页面预览，方便检查封面、目录、正文与参考文献。
+
+简单来说：它不只是“统一字体”的脚本，而是一套包含**识别、规划、排版、风险控制、验证和人工复核**的论文交付流程。✅
+
+## 🚀 最简单的安装方法
+
+不熟悉代码的用户无需手动下载或配置环境。打开一个能够访问本地文件的 AI Agent，将下面这段话完整发送给它：
+
+```text
+请从下面的 GitHub 地址安装 ZAFU Paper Formatter Skill：
+https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill
+
+请自行检查运行环境并完成依赖安装。优先使用 uv 管理 Python 环境，不要修改我的论文文件。安装完成后运行 Skill 自带的健康检查，并告诉我安装位置和检查结果。
+```
+
+AI Agent 应当自动完成仓库下载、依赖安装和健康检查。首次安装可能需要下载 Python 依赖，请保持网络连接。
+
+## 💬 最小使用示例
+
+先找到论文文件的完整路径。例如：
+
+```text
+D:\毕业论文\我的论文.docx
+```
+
+然后把文件路径和下面的提示词一起发送给已经安装 Skill 的 AI Agent：
+
+```text
+请使用 ZAFU Paper Formatter Skill 排版以下本科毕业论文：
+D:\毕业论文\我的论文.docx
+
+要求：
+1. 使用浙江农林大学本科毕业论文规范；
+2. 保留原文内容，不覆盖原文件；
+3. 插入封面页和诚信页，但不要擅自填写或修改个人信息；
+4. 将普通表格整理为三线表；
+5. 将可识别的 LaTeX 公式转换为 Word 原生公式；
+6. 统一标题、正文、图表题注和参考文献格式；
+7. 整理并插入标准目录；
+8. 完成后生成一个新的 DOCX，并报告修改内容、未解决问题和需要我确认的项目。
+```
+
+Markdown 和 TXT 文件的使用方法相同，只需替换文件路径：
+
+```text
+请使用 ZAFU Paper Formatter Skill 将
+D:\毕业论文\论文初稿.md
+排版为浙江农林大学本科毕业论文 DOCX。保留原文件，输出新文件，并列出需要人工确认的标题层级。
+```
+
+## ⚠️ 使用前注意
+
+- Skill 默认不会覆盖原论文，应当输出新的 Word 文件。
+- 排版前请自行备份论文和图片等附件。
+- 封面与诚信页中的个人信息需要作者最终核对和填写。
+- 自动目录生成后，建议在 Word/WPS 中右键目录并选择“更新整个目录”。
+- 浮动图片、文本框、SmartArt、嵌入式 Excel、复杂公式编号和严重损坏的 Word 文件可能需要人工处理。
+- 最终提交前必须人工检查封面、页码、目录、公式、图表和参考文献。
+
+## 🧑‍💻 手动安装（开发者或高级用户）
+
+需要手动安装时，可执行：
 
 ```powershell
 git clone https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill.git
@@ -27,36 +162,25 @@ cd ZAFU-Paper-Formatter-Skill
 uv sync
 ```
 
-## Usage
+最小命令行用法：
 
 ```powershell
-uv run python scripts\thesis_format.py input.docx `
+uv run python scripts\thesis_format.py "D:\毕业论文\我的论文.docx" `
   --profile zafu_2022 `
   --mode conservative-repair `
   --output-dir output
 ```
 
-Markdown and plain-text inputs use the same dispatcher:
-
-```powershell
-uv run python scripts\thesis_format.py thesis.md --profile zafu_2022 --output-dir output
-uv run python scripts\thesis_format.py thesis.txt --profile zafu_2022 --output-dir output
-```
-
-## Validation
+健康检查与测试：
 
 ```powershell
 uv run python scripts\verify_skill_health.py
 uv run python -m unittest tests\test_unified_thesis_ir.py
-uv run python scripts\run_regression_fixtures.py --profile zafu_2022 --output-dir test_output
+uv run python scripts\run_regression_fixtures.py --profile zafu_2022 --output-dir test_output --include-tag phase2
 ```
 
-## Safety
+## 🧭 项目状态
 
-The formatter is intentionally conservative. It automatically applies only high-confidence, low-risk changes. Complex numbering rebuilds, floating objects, embedded Office content, citation conversion, and major section/header/footer changes remain confirmation-first operations.
+当前版本属于早期公开版本。Skill 采用保守策略：只自动执行高置信度、低风险的排版操作；复杂或可能破坏文档结构的修改会进入人工确认清单。
 
-The bundled ZAFU profile and template-related assets are intended for thesis-formatting research and personal academic use. Confirm institutional template redistribution requirements before broader reuse.
-
-## Status
-
-This is an early public release. Review generated documents and validation reports before formal submission.
+仓库中的 ZAFU profile 和模板相关资源用于论文排版研究及个人学术用途。进行更广泛的转载或再分发前，请确认学校模板的相关要求。
