@@ -1,0 +1,39 @@
+{
+  "input": "input.txt",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "text",
+    "plain_txt"
+  ],
+  "expected": {
+    "sourceKind": "text",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "rebuild",
+    "documentRiskClass": "B",
+    "recommendedMode": "rebuild",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "chosenStrategy": "text_rebuild",
+    "strategyExecutionMode": "rebuild",
+    "thesisIrStrategyCandidate": "text_rebuild",
+    "minOverallStructureConfidence": 0.8,
+    "referenceNormalization": {
+      "allEntriesHaveNumericLabels": true,
+      "safeListLabelStripCandidate": true,
+      "bodyNumericCitationCount": 0
+    },
+    "strategyReasonsInclude": [
+      "text_source_uses_rebuild_route",
+      "reference_list_numeric_labels_can_be_stripped_in_rebuild"
+    ],
+    "requiresValidationReport": true,
+    "requiresRenderValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "validationSummary": {
+      "qualityGatePassed": true
+    }
+  }
+}

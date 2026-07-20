@@ -1,0 +1,61 @@
+{
+  "input": "input.docx",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "docx",
+    "numeric_references"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "conservative-repair",
+    "documentRiskClass": "B",
+    "recommendedMode": "conservative-repair",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "requiresCitationConversionPlan": true,
+    "chosenStrategy": "preserve_first",
+    "strategyExecutionMode": "conservative-repair",
+    "strategyReasonsInclude": [
+      "reference_list_numeric_labels_can_be_stripped_in_rebuild",
+      "body_numeric_citations_still_require_manual_mode_conversion"
+    ],
+    "referenceNormalization": {
+      "allEntriesHaveNumericLabels": true,
+      "safeListLabelStripCandidate": true,
+      "bodyNumericCitationCount": 1
+    },
+    "citationConversionPlan": {
+      "recommendedAction": "manual_review_required",
+      "safeListLabelStripCandidate": true,
+      "bodyNumericCitationCount": 1,
+      "candidateCount": 1
+    },
+    "citationConversionPlanCandidatesByKind": {
+      "unmatched_label": 1
+    },
+    "citationConversionPlanMatchSummary": {
+      "fullyMatchedCount": 0,
+      "partiallyMatchedCount": 0,
+      "unmatchedSpanCount": 1
+    },
+    "citationConversionPlanUnmatchedLabelsIncludes": [
+      "3"
+    ],
+    "citationConversionPlanManualReviewReasonsInclude": [
+      "body_numeric_citation_requires_manual_review",
+      "unmatched_reference_labels"
+    ],
+    "preflightBlockedAutoRepairsIncludes": [
+      "convert_bibliography_citation_mode"
+    ],
+    "requiresValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "validationSummary": {
+      "qualityGatePassed": true
+    }
+  }
+}

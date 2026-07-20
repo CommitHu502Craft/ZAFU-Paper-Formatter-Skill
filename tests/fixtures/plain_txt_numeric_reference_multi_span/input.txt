@@ -1,0 +1,11 @@
+林木基因编辑中的多文献引用测试
+摘要
+本文用于验证正文中多编号引用的 citation planning 输出。
+关键词：基因编辑；引用规划；多文献
+
+1 引言
+已有研究表明多位点编辑策略已较成熟[1,2]。
+
+参考文献
+[1] LI A, ZHOU B. Multi-site editing in trees[J]. Tree Genetics, 2022, 4(1): 1-8.
+[2] WANG C, CHEN D. CRISPR optimization for poplar[J]. Forest Biotechnology, 2023, 6(2): 9-16.

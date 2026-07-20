@@ -1,0 +1,9 @@
+profile: hybrid_fixture
+policy:
+  preserve_cover_and_integrity_pages_from_template: true
+  force_template_front_matter: false
+  required_front_matter_markers: []
+  toc_before_abstract: true
+  front_matter_rebuild_requires_confirmation: false
+  allow_conservative_repair_for_risk_class_c: true
+  continue_safe_subset_repair_when_confirmation_requests_present: true

@@ -1,0 +1,14 @@
+CRISPR/Cas在杨树改良中的应用
+摘要
+CRISPR/Cas系统在杨树木质素调控和生长性状优化中表现出明显潜力。
+关键词：CRISPR/Cas；杨树；木质素
+
+1 引言
+已有研究显示该系统可实现多位点编辑[1-2]。
+
+2 应用场景
+基因编辑可用于木材性质和抗逆性状改良。
+
+参考文献
+[1] JINEK M, CHYLINSKI K. A programmable dual-RNA-guided DNA endonuclease[J]. Science, 2012, 337(6096): 816-821.
+[2] CONG L, RAN F A. Multiplex genome engineering using CRISPR/Cas systems[J]. Science, 2013, 339(6121): 819-823.

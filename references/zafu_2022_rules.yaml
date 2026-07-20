@@ -1,0 +1,300 @@
+school: zafu
+version: 2022
+document_type: undergraduate_thesis
+page:
+  paper: A4
+  margin_top_cm: 2.7
+  margin_bottom_cm: 2.7
+  margin_left_cm: 2.7
+  margin_right_cm: 2.7
+  header_cm: 1.8
+  footer_cm: 1.85
+  header_text_mode: thesis_title_after_toc
+  header_font_east_asia: 宋体
+  header_font_ascii: Times New Roman
+  header_size_pt: 9
+  header_align: center
+  header_rule: preserve_template_header_style_and_bottom_border
+body:
+  line_spacing_pt: 20
+  spacing_before_pt: 0
+  spacing_after_pt: 0
+front_matter:
+  preserve_cover_and_integrity_pages_from_template: true
+  insert_cover_and_integrity_pages_verbatim: true
+  allow_cover_or_integrity_text_population: false
+  infer_cover_title_from_body: false
+  toc_before_abstract: true
+  toc_title_text: "目  录"
+  toc_title_ascii_gap_count: 2
+  toc_title_bold: true
+  toc_title_before_lines: 150
+  toc_title_after_lines: 100
+  toc_title_line_spacing_multiple: 2.41
+  abstract_sequence:
+    - title_cn
+    - abstract_cn
+    - keywords_cn
+    - title_en
+    - abstract_en
+    - keywords_en
+styles:
+  thesis_title:
+    type: paragraph
+    east_asia_font: 黑体
+    ascii_font: Times New Roman
+    size_pt: 16
+    bold: false
+    align: center
+    spacing_before_pt: 3
+    spacing_after_pt: 3
+    line_spacing_pt: 22
+  body_text:
+    type: paragraph
+    east_asia_font: 宋体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  heading1:
+    type: paragraph
+    east_asia_font: 楷体
+    ascii_font: Times New Roman
+    size_pt: 14
+    bold: true
+    align: center
+    outline_level: 0
+    spacing_before_pt: 6
+    spacing_after_pt: 6
+    spacing_before_lines: 100
+    spacing_after_lines: 100
+  heading2:
+    type: paragraph
+    east_asia_font: 黑体
+    ascii_font: Times New Roman
+    size_pt: 12
+    bold: true
+    outline_level: 1
+    spacing_before_pt: 3
+    spacing_after_pt: 3
+    spacing_before_lines: 50
+    spacing_after_lines: 50
+  heading3:
+    type: paragraph
+    east_asia_font: 黑体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    bold: false
+    outline_level: 2
+    spacing_before_pt: 3
+    spacing_after_pt: 3
+    spacing_before_lines: 50
+    spacing_after_lines: 50
+  abstract_label_cn:
+    type: paragraph
+    east_asia_font: 黑体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    bold: true
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  abstract_text_cn:
+    type: paragraph
+    east_asia_font: 楷体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  keywords_label_cn:
+    type: paragraph
+    east_asia_font: 黑体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    bold: true
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  keywords_text_cn:
+    type: paragraph
+    east_asia_font: 楷体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  title_en:
+    type: paragraph
+    east_asia_font: Times New Roman
+    ascii_font: Times New Roman
+    size_pt: 16
+    align: center
+    bold: false
+    spacing_before_pt: 6
+    spacing_after_pt: 6
+  toc_title:
+    type: paragraph
+    east_asia_font: 宋体
+    ascii_font: Times New Roman
+    size_pt: 22
+    align: center
+    bold: true
+    indent_chars: 0
+    spacing_before_lines: 150
+    spacing_after_lines: 100
+    line_spacing_multiple: 2.41
+  toc_body:
+    type: paragraph
+    east_asia_font: 宋体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 0
+    line_spacing_multiple: 2.41
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  abstract_label_en:
+    type: paragraph
+    east_asia_font: Times New Roman
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    bold: true
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  abstract_text_en:
+    type: paragraph
+    east_asia_font: Times New Roman
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  keywords_label_en:
+    type: paragraph
+    east_asia_font: Times New Roman
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    bold: true
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  keywords_text_en:
+    type: paragraph
+    east_asia_font: Times New Roman
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 2
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  references_heading:
+    type: paragraph
+    east_asia_font: 楷体
+    ascii_font: Times New Roman
+    size_pt: 14
+    bold: true
+    align: center
+    spacing_before_pt: 6
+    spacing_after_pt: 6
+  references_cn:
+    type: paragraph
+    east_asia_font: 宋体
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 0
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+  references_en:
+    type: paragraph
+    east_asia_font: Times New Roman
+    ascii_font: Times New Roman
+    size_pt: 10.5
+    indent_chars: 0
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
+numbering_families:
+  science_decimal:
+    levels: ["1", "1.1", "1.1.1", "1.1.1.1"]
+  humanities_cn:
+    levels: ["一、", "（一）", "1、", "（1）"]
+  humanities_chapter:
+    levels: ["第一章", "第一节", "一、", "（一）"]
+spacing_rules:
+  heading2_leading_ascii_spaces: 4
+  heading2_separator_ascii_spaces: 2
+  heading3_leading_ascii_spaces: 4
+  heading3_separator_ascii_spaces: 2
+tables:
+  border_style: research_three_line
+  caption_position: above_table
+  table_alignment: center
+  cell_horizontal_alignment: center
+  cell_vertical_alignment: center
+  strip_table_style: true
+  remove_cell_shading: true
+  remove_vertical_borders: true
+  preserve_body_row_separators: false
+  header_rows: 1
+  max_header_rows: 1
+  repeat_group_header_rules: false
+  top_rule:
+    enabled: true
+    size: 12
+    reinforce_on_first_row_cells: true
+  header_rule:
+    enabled: true
+    size: 8
+  group_header_rule:
+    enabled: false
+    size: 8
+    mode: auto_when_merged_header_continues
+  bottom_rule:
+    enabled: true
+    size: 12
+    reinforce_on_last_row_cells: true
+cross_references:
+  enabled: true
+  caption_bookmarks: true
+  field_code: REF
+equations:
+  default_conversion: true
+  convert_identifiable_latex: true
+  convert_plain_text_display_equations: true
+  convert_plain_text_inline_equations: true
+  preserve_ambiguous_or_malformed_text_for_manual_review: true
+references:
+  standard: GB/T 7714-2015
+  citation_mode: author_year
+  body_citation_brackets: round_parentheses
+  bibliography_numbering: none
+  first_line_indent_chars: 0
+  inherit_body_indent: false
+  ordering:
+    - chinese_by_first_author_pinyin
+    - foreign_by_first_author_surname
+  language_group_order:
+    - zh
+    - en
+  author_limit_text_cn: 等
+  author_limit_text_en: et al.
+review_triggers:
+  - mixed_numbering_families
+  - ambiguous_heading_vs_body
+  - missing_english_abstract
+  - manual_toc_like_lines
+  - suspicious_caption_distance
+  - equation_like_plain_text
+  - bibliography_mode_mismatch
+  - numeric_citation_found_under_author_year_mode

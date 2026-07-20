@@ -1,0 +1,29 @@
+{
+  "input": "input.docx",
+  "mode": "conservative-repair",
+  "compliance": "strict-school",
+  "tags": [
+    "phase2",
+    "docx",
+    "references",
+    "strict_school"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "conservative-repair",
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "repairExecutionLogActionIncludes": [
+      "normalize_references_heading",
+      "split_combined_references_block",
+      "normalize_reference_entry"
+    ],
+    "repairedDocxParagraphTextsInclude": [
+      "参考文献",
+      "张三. 文献A[J]. 期刊A, 2020.",
+      "Li A. Paper B[J]. Journal B, 2021."
+    ]
+  }
+}

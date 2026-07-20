@@ -1,0 +1,7 @@
+profile: hybrid_fixture
+style_roles:
+  body_text: "1"
+  heading1: "2"
+  heading2: "2"
+  heading3: "2"
+  caption: "1"

@@ -1,0 +1,10 @@
+profile: zafu_2022
+notes:
+  - Style IDs remain template-derived and should be extracted from the physical template baseline.
+  - This file reserves a profile-local place for style-role mapping.
+style_roles:
+  heading1: template_derived
+  heading2: template_derived
+  heading3: template_derived
+  body_text: template_derived
+  caption: template_derived

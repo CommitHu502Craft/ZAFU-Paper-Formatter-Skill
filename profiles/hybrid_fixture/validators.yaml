@@ -1,0 +1,12 @@
+profile: hybrid_fixture
+validators:
+  structural:
+    - package_integrity
+    - relationship_integrity
+    - header_footer_part_presence
+  rule:
+    - body_style
+    - front_matter_structure
+    - heading_hierarchy
+    - caption_layout
+  render: []

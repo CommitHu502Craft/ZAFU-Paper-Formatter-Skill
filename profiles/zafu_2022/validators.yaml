@@ -1,0 +1,17 @@
+profile: zafu_2022
+validators:
+  structural:
+    - package_integrity
+    - relationship_integrity
+    - header_footer_part_presence
+  rule:
+    - page_geometry
+    - body_style
+    - front_matter_structure
+    - header_text
+    - heading_hierarchy
+    - caption_layout
+    - bibliography_indent
+  render:
+    - pdf_conversion_if_available
+    - key_page_preview_export

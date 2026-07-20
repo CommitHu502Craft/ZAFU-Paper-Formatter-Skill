@@ -1,0 +1,9 @@
+school: generic_cn_bachelor
+version: draft
+document_type: undergraduate_thesis
+defaults:
+  recommended_mode: conservative-repair
+  blocked_auto_repairs:
+    - rebuild_front_matter
+    - rebuild_numbering_system
+    - convert_bibliography_mode

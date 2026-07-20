@@ -1,0 +1,14 @@
+profile: zafu_2022
+policy:
+  preserve_cover_and_integrity_pages_from_template: true
+  insert_cover_and_integrity_pages_verbatim: true
+  allow_cover_or_integrity_text_population: false
+  infer_cover_title_from_body: false
+  force_template_front_matter: true
+  required_front_matter_markers:
+    - 本科生毕业论文（设计）
+    - 本科生毕业论文（设计）诚信承诺书
+  toc_before_abstract: true
+  front_matter_rebuild_requires_confirmation: true
+  allow_conservative_repair_for_risk_class_c: true
+  continue_safe_subset_repair_when_confirmation_requests_present: true

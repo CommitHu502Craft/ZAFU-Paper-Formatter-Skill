@@ -1,0 +1,15 @@
+.venv/
+output/
+test_output*/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.tmp
+*.log
+~$*
+*.pdf
+*_preview/
+render_validation/
+Thumbs.db
+.DS_Store

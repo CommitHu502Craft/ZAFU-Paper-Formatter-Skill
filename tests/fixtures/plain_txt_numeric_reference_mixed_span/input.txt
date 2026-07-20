@@ -1,0 +1,13 @@
+木材性状调控中的混合引用跨度测试
+摘要
+本文用于验证正文中混合多标签与范围标签的 citation planning 输出。
+关键词：混合引用；范围引用；木材性状
+
+1 引言
+已有研究显示相关方法已形成初步体系[1, 3-4]。
+
+参考文献
+[1] LI A, ZHOU B. Forest breeding overview[J]. Tree Science, 2022, 4(1): 1-8.
+[2] SUN E, HU F. Xylem trait modelling[J]. Wood Research, 2021, 3(2): 11-18.
+[3] WANG C, CHEN D. Trait engineering in poplar[J]. Forest Biotechnology, 2023, 6(2): 9-16.
+[4] ZHAO G, LIN H. Secondary growth regulation[J]. Plant Structure, 2024, 5(1): 22-29.

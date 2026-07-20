@@ -1,0 +1,27 @@
+{
+  "input": "input.md",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "text",
+    "markdown",
+    "unified_ir"
+  ],
+  "expected": {
+    "sourceKind": "text",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "rebuild",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "chosenStrategy": "text_rebuild",
+    "strategyExecutionMode": "rebuild",
+    "thesisIrStrategyCandidate": "text_rebuild",
+    "requiresValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "validationSummary": {
+      "qualityGatePassed": true
+    }
+  }
+}

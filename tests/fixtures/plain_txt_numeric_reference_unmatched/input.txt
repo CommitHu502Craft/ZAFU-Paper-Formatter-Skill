@@ -1,0 +1,11 @@
+森林培育研究中的未匹配引用测试
+摘要
+本文用于验证正文引用编号无法映射到参考文献时的 citation planning 输出。
+关键词：未匹配引用；引用规划；森林培育
+
+1 引言
+已有研究显示该路径具有应用前景[3]。
+
+参考文献
+[1] LI A, ZHOU B. Forest breeding overview[J]. Tree Science, 2022, 4(1): 1-8.
+[2] WANG C, CHEN D. Trait engineering in poplar[J]. Forest Biotechnology, 2023, 6(2): 9-16.

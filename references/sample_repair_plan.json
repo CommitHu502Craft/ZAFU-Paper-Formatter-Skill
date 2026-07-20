@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-04-11T19:25:05+08:00",
+  "source": "input.docx",
+  "templateDocx": "assets/official_zafu_2022_template.docx",
+  "rulesPath": "references/zafu_2022_rules.yaml",
+  "preset": "zafu_2022",
+  "repairMode": "in_place",
+  "numberingScheme": "science_decimal",
+  "headerText": "浙江农林大学本科生毕业论文（设计）",
+  "styleMapping": {
+    "32": "zafu_heading1",
+    "33": "zafu_body",
+    "44": "zafu_caption"
+  },
+  "paragraphRoles": {
+    "32": {
+      "role": "heading1",
+      "confidence": 0.98,
+      "signals": ["heading_style_name", "outline_level"]
+    },
+    "44": {
+      "role": "figure_caption",
+      "confidence": 0.91,
+      "signals": ["caption_pattern"]
+    }
+  },
+  "paragraphActions": [
+    {
+      "paragraphIndex": 32,
+      "action": "normalize_heading_style",
+      "targetStyle": "zafu_heading1"
+    }
+  ],
+  "numberingActions": [],
+  "rebuildRegions": [
+    {
+      "startParagraph": 0,
+      "endParagraph": 9,
+      "mode": "template_rebuild_candidate",
+      "reason": "front_matter_contains_toc_like_or_template_scaffold_blocks"
+    }
+  ],
+  "manualReview": [
+    {
+      "paragraphIndex": 88,
+      "issue": "mixed_numbering_family",
+      "text": "1.1.1 ..."
+    },
+    {
+      "paragraphIndex": 121,
+      "issue": "equation_spacing_and_numbering_review",
+      "text": "(1-1)"
+    }
+  ],
+  "issues": [],
+  "templateRuleDiff": {
+    "mismatches": [],
+    "match": true
+  }
+}

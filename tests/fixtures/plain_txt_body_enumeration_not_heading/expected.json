@@ -1,0 +1,23 @@
+{
+  "input": "input.txt",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "text",
+    "plain_txt",
+    "body_enumeration"
+  ],
+  "expected": {
+    "sourceKind": "text",
+    "dispatcherStatus": "stopped_for_confirmation",
+    "effectiveMode": "rebuild",
+    "documentRiskClass": "B",
+    "recommendedMode": "rebuild",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "chosenStrategy": "text_rebuild",
+    "strategyExecutionMode": "rebuild",
+    "thesisIrStrategyCandidate": "text_rebuild",
+    "minConfirmationRequests": 1
+  }
+}

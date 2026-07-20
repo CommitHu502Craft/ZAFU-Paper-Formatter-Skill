@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thesis Docx Formatter"
+  short_description: "Formats DOCX, Markdown, and TXT theses through one audited semantic model."
+  default_prompt: "Audit and format this thesis using the unified ThesisIR workflow, preserve its wording and immutable front matter, and report every repair and unresolved risk."

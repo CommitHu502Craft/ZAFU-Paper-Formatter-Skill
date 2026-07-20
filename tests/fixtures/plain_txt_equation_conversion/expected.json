@@ -1,0 +1,31 @@
+{
+  "input": "input.txt",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "text",
+    "plain_txt",
+    "equation"
+  ],
+  "expected": {
+    "sourceKind": "text",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "rebuild",
+    "documentRiskClass": "B",
+    "recommendedMode": "rebuild",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "chosenStrategy": "text_rebuild",
+    "strategyExecutionMode": "rebuild",
+    "thesisIrStrategyCandidate": "text_rebuild",
+    "requiresValidationReport": true,
+    "requiresRenderValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "validationSummary": {
+      "qualityGatePassed": true
+    },
+    "repairedDocxMinOmmlCount": 6
+  }
+}

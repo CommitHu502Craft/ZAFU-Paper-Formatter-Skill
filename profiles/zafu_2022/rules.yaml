@@ -1,0 +1,2 @@
+extends: references/zafu_2022_rules.yaml
+profile: zafu_2022

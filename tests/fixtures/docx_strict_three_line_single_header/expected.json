@@ -1,0 +1,30 @@
+{
+  "input": "input.docx",
+  "mode": "conservative-repair",
+  "compliance": "strict-school",
+  "tags": [
+    "phase2",
+    "docx",
+    "table",
+    "strict_school"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "conservative-repair",
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "repairExecutionLogActionIncludes": [
+      "normalize_table_layout"
+    ],
+    "repairedDocxTableBottomBorderRowCounts": [
+      [
+        3,
+        0,
+        0,
+        3
+      ]
+    ]
+  }
+}

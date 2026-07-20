@@ -1,0 +1,11 @@
+林木遗传改良中的重复参考文献编号测试
+摘要
+本文用于验证参考文献列表中重复数字编号时的 citation planning 输出。
+关键词：重复编号；引用规划；林木遗传改良
+
+1 引言
+已有研究支持该方法的应用前景[1]。
+
+参考文献
+[1] LI A, ZHOU B. Forest breeding overview[J]. Tree Science, 2022, 4(1): 1-8.
+[1] WANG C, CHEN D. Trait engineering in poplar[J]. Forest Biotechnology, 2023, 6(2): 9-16.

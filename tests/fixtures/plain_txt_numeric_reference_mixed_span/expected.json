@@ -1,0 +1,59 @@
+{
+  "input": "input.txt",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "text",
+    "plain_txt",
+    "numeric_references"
+  ],
+  "expected": {
+    "sourceKind": "text",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "rebuild",
+    "documentRiskClass": "B",
+    "recommendedMode": "rebuild",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "requiresCitationConversionPlan": true,
+    "chosenStrategy": "text_rebuild",
+    "strategyReasonsInclude": [
+      "reference_list_numeric_labels_can_be_stripped_in_rebuild",
+      "body_numeric_citations_still_require_manual_mode_conversion"
+    ],
+    "referenceNormalization": {
+      "allEntriesHaveNumericLabels": true,
+      "safeListLabelStripCandidate": true,
+      "bodyNumericCitationCount": 1
+    },
+    "citationConversionPlan": {
+      "recommendedAction": "manual_review_required",
+      "safeListLabelStripCandidate": true,
+      "bodyNumericCitationCount": 1,
+      "candidateCount": 1
+    },
+    "citationConversionPlanCandidatesByKind": {
+      "range_label": 1
+    },
+    "citationConversionPlanMatchSummary": {
+      "fullyMatchedCount": 1,
+      "partiallyMatchedCount": 0,
+      "unmatchedSpanCount": 0
+    },
+    "citationConversionPlanManualReviewReasonsInclude": [
+      "body_numeric_citation_requires_manual_review",
+      "multi_reference_citation_span",
+      "numeric_range_citation_span"
+    ],
+    "preflightBlockedAutoRepairsIncludes": [
+      "convert_bibliography_citation_mode"
+    ],
+    "requiresValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "validationSummary": {
+      "qualityGatePassed": true
+    }
+  }
+}

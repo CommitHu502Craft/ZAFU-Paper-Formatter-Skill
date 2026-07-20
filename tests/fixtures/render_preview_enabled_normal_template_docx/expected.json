@@ -1,0 +1,49 @@
+{
+  "input": "../../../浙江农林大学毕业论文模板参考.docx",
+  "mode": "audit-only",
+  "tags": [
+    "render_preview_enabled",
+    "optional"
+  ],
+  "requiresCommands": [
+    "soffice",
+    "pdftoppm"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "audit-only",
+    "documentRiskClass": "C",
+    "recommendedMode": "audit-only",
+    "minConfirmationRequests": 1,
+    "blockedAutoRepairsIncludes": [
+      "rewrite_heading_numbering_tree"
+    ],
+    "requiresValidationReport": true,
+    "requiresRenderValidationReport": true,
+    "requiresRenderPreviewDir": true,
+    "requiresPreviewManifest": true,
+    "validationSummary": {
+      "renderStatus": "ok"
+    },
+    "renderValidation": {
+      "status": "ok"
+    },
+    "previewExport": {
+      "available": true,
+      "backend": "pdftoppm"
+    },
+    "previewImageCount": 5,
+    "previewManifestMinPages": 5,
+    "previewManifestPageLabelsIncludes": [
+      "cover",
+      "toc",
+      "abstract",
+      "firstBodyPage",
+      "references"
+    ],
+    "previewManifestStatusesInclude": [
+      "exported"
+    ]
+  }
+}

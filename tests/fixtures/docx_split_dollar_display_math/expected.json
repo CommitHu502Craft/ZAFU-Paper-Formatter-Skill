@@ -1,0 +1,23 @@
+{
+  "input": "input.docx",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "docx",
+    "equation",
+    "display_math"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "conservative-repair",
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "repairExecutionLogActionIncludes": [
+      "convert_standalone_dollar_math_block"
+    ],
+    "repairedDocxMinOmmlCount": 1,
+    "repairedDocxDollarCountMax": 0
+  }
+}

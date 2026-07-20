@@ -1,0 +1,17 @@
+公式识别测试文档
+摘要
+本文用于验证纯文本重建链路中的公式识别与 MathML/OMML 转换能力，其中包括行内公式、独立公式和带编号公式。
+关键词：公式识别；MathML；OMML
+
+1 引言
+正文中的行内公式 $E=mc^2$ 应当被转换为 Word 公式对象。
+
+2 公式示例
+$$\frac{a+b}{c}$$（2-1）
+F = ma
+\begin{equation}
+\sum_{i=1}^{n} x_i = y
+\end{equation}
+
+参考文献
+[1] TEST A. Equation formatting in Word[J]. Journal of Tests, 2024, 1(1): 1-5.

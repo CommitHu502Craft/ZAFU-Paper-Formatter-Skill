@@ -1,0 +1,15 @@
+{
+  "input": "../../../浙江农林大学毕业论文模板参考.docx",
+  "mode": "audit-only",
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "audit-only",
+    "documentRiskClass": "C",
+    "recommendedMode": "audit-only",
+    "minConfirmationRequests": 3,
+    "blockedAutoRepairsIncludes": [
+      "rewrite_heading_numbering_tree"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "input": "input.docx",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "docx",
+    "equation"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "conservative-repair",
+    "documentRiskClass": "B",
+    "recommendedMode": "conservative-repair",
+    "requiresValidationReport": true,
+    "requiresRenderValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "validationSummary": {
+      "qualityGatePassed": true
+    },
+    "repairExecutionLogActionIncludes": [
+      "convert_plain_text_display_equation",
+      "convert_plain_text_formula_like_paragraph"
+    ],
+    "repairedDocxMinOmmlCount": 4
+  }
+}

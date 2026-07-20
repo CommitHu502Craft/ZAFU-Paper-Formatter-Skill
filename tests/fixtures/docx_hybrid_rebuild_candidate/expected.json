@@ -1,0 +1,67 @@
+{
+  "input": "input.docx",
+  "profile": "hybrid_fixture",
+  "mode": "conservative-repair",
+  "tags": [
+    "phase2",
+    "docx",
+    "hybrid"
+  ],
+  "expected": {
+    "sourceKind": "docx",
+    "dispatcherStatus": "completed",
+    "effectiveMode": "conservative-repair",
+    "documentRiskClass": "C",
+    "recommendedMode": "audit-only",
+    "requiresStrategySelection": true,
+    "requiresThesisIr": true,
+    "requiresHybridAttachmentReport": true,
+    "requiresValidationReport": true,
+    "requiresRenderValidationReport": true,
+    "requiresRepairPlan": true,
+    "requiresRepairExecution": true,
+    "requiresRepairedDocx": true,
+    "chosenStrategy": "hybrid_rebuild",
+    "strategyExecutionMode": "conservative-repair",
+    "thesisIrStrategyCandidate": "hybrid_rebuild",
+    "thesisIrTopLevelKeysInclude": [
+      "captionBlocks",
+      "attachableAssetCandidates",
+      "attachableAssetCandidateSummary",
+      "assetAnchorAmbiguities"
+    ],
+    "thesisIrCaptionBlockCount": 1,
+    "thesisIrAttachableAssetCandidateCount": 3,
+    "thesisIrAttachableAssetActionCounts": {
+      "skip": 2,
+      "reattach_candidate": 1
+    },
+    "assetAnchorAmbiguitiesMinCount": 2,
+    "assetAnchorAmbiguityKindsInclude": [
+      "preserved_assets_require_anchor_resolution",
+      "asset_caption_count_mismatch"
+    ],
+    "strategyReasonsInclude": [
+      "risk_class_c_requires_mode_gate_outside_strategy",
+      "preflight_recommended_audit_only_requires_mode_gate_outside_strategy"
+    ],
+    "hybridAttachmentReport": {
+      "attachedCount": 1,
+      "skippedCount": 0
+    },
+    "hybridAttachmentReportActionCounts": {
+      "manualReviewCount": 0,
+      "skippedByPolicyCount": 2
+    },
+    "renderValidation": {
+      "status": "unavailable"
+    },
+    "previewExport": {
+      "available": false,
+      "backend": null
+    },
+    "validationSummary": {
+      "qualityGatePassed": true
+    }
+  }
+}
