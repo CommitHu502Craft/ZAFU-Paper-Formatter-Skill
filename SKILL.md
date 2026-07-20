@@ -20,6 +20,22 @@ This skill is **not**:
 - an AI thesis rewriter
 - a pipeline that forces all inputs through Markdown
 
+## Environment bootstrap
+
+- Prefer an isolated project environment. Use `uv` when available; otherwise use
+  standard Python `venv` and `pip` with `requirements.txt`.
+- On networks in mainland China, or when dependency resolution is demonstrably
+  slow or failing, prefer a trusted domestic Python package mirror such as the
+  Tsinghua University or Alibaba Cloud mirror for the current install command.
+- Respect an existing user or organization package-index configuration. Do not
+  overwrite global `pip`, `uv`, Conda, or system configuration without explicit
+  approval.
+- Keep the official PyPI index as a documented fallback when a mirror is stale,
+  incomplete, or unavailable. Never disable TLS verification or use an unknown
+  binary source to bypass certificate or download problems.
+- Record the Python version, installer, selected index, and installed dependency
+  versions in the execution report when the environment is bootstrapped.
+
 ## 2. Core principle: safe subset, not universal Word control
 
 The core design rule is:
