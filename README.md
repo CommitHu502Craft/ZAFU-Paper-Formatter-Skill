@@ -2,8 +2,10 @@
 
 <h3 align="center">ZAFU Paper Formatter Skill</h3>
 
-> 🎓 **把论文丢给 AI，喝杯咖啡，回来检查排版结果。**<br>
-> ✨ **Word、Markdown、TXT 都能接，三线表、公式、目录、字体、页码一次整理。**
+<p align="center">
+  <strong>🎓 把论文丢给 AI，喝杯咖啡，回来检查排版结果。</strong><br>
+  <strong>✨ Word、Markdown、TXT 都能接，三线表、公式、目录、字体、页码一次整理。</strong>
+</p>
 
 这是一个面向**浙江农林大学本科生**打造的毕业论文智能排版 Skill，也是一个尽量让“小白不用学排版、不用写代码、不用反复调 Word”的论文交付助手。它可以由 Codex、Claude Code、Cursor 等能够访问本地文件和运行命令的 AI Agent 使用，帮助你把格式混乱的论文初稿整理为结构清楚、规则统一、能够继续编辑的 Word 文档。🚀
 
