@@ -6,6 +6,8 @@ requires-python = ">=3.11"
 dependencies = [
   "latex2mathml>=3.78.0",
   "lxml>=5.0.0",
+  "pillow>=12.3.0",
+  "pypdf>=6.14.2",
   "python-docx>=1.1.0",
   "pyyaml>=6.0.0",
 ]

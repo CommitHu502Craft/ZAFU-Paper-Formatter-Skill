@@ -799,7 +799,9 @@ def choose_default_strategy(source_type: str, numbering_analysis: Dict[str, Any]
     if conflicts and (images or tables):
         return "hybrid_rebuild"
     if front_conf < 0.45:
-        return "audit_only"
+        # Deliver-first: keep the source body and overlay template styles
+        # instead of refusing to format when front matter is unclear.
+        return "template_overlay"
     return "preserve_first"
 
 
@@ -907,6 +909,14 @@ def build_semantic_blocks(
                 "text": text or None,
                 "level": level,
                 "sourceAnchor": raw.get("sourceAnchor") or {"kind": "source_index", "index": source_index},
+                # Direct document paragraph index for DOCX sources; this is the
+                # value visual_refinement_plan targets should use as paragraphIndex.
+                "docxParagraphIndex": (
+                    int(source_index)
+                    if source_index is not None and str((raw.get("sourceAnchor") or {}).get("kind") or "") in {"docx_paragraph", ""}
+                    and evidence.get("sourceType") == "docx" and kind not in {"table", "image"}
+                    else None
+                ),
                 "confidence": round(confidence, 2),
                 "attributes": {
                     key: raw.get(key)
@@ -1049,14 +1059,137 @@ def build_thesis_ir(evidence: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def apply_semantic_overrides(ir: Dict[str, Any], overrides_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply agent-provided semantic role overrides to the built IR.
+
+    Overrides re-label block roles only; body text is never modified.
+    Invalid blockIds are reported but never fatal. Accepted roles cover
+    heading levels, abstract/keyword labels, captions, equations,
+    references, acknowledgements, appendix, plain body, and
+    template_example (blocks downstream builders should ignore).
+    """
+    allowed_roles = {
+        "body", "front_matter", "figure_caption", "table_caption", "equation",
+        "cn_abstract_heading", "en_abstract_heading", "keywords",
+        "references_heading", "reference_entry",
+        "acknowledgements_heading", "acknowledgements_body",
+        "appendix_heading", "appendix_body", "template_example",
+    } | {f"heading_{n}" for n in range(1, 7)}
+    role_to_kind = {
+        "figure_caption": "caption",
+        "table_caption": "caption",
+        "reference_entry": "reference",
+        "references_heading": "heading",
+        "acknowledgements_heading": "heading",
+        "appendix_heading": "heading",
+        "cn_abstract_heading": "heading",
+        "en_abstract_heading": "heading",
+        "equation": "equation",
+    }
+
+    blocks = ir.get("semanticBlocks") or []
+    by_id = {block.get("id"): block for block in blocks}
+    by_source_index: Dict[int, Dict[str, Any]] = {}
+    for block in blocks:
+        anchor = block.get("sourceAnchor") or {}
+        index = anchor.get("index")
+        if index is not None:
+            by_source_index.setdefault(int(index), block)
+
+    applied: List[Dict[str, Any]] = []
+    rejected: List[Dict[str, Any]] = []
+    for override in overrides_payload.get("overrides") or []:
+        if not isinstance(override, dict):
+            rejected.append({"override": override, "reason": "not_an_object"})
+            continue
+        block_id = str(override.get("blockId") or "")
+        role = str(override.get("role") or "")
+        block = by_id.get(block_id)
+        if block is None:
+            match = re.search(r"(\d+)", block_id)
+            if match:
+                block = by_source_index.get(int(match.group(1)))
+        if block is None:
+            rejected.append({"blockId": block_id, "reason": "block_id_not_found"})
+            continue
+        if role not in allowed_roles:
+            rejected.append({"blockId": block_id, "role": role, "reason": "role_not_allowed"})
+            continue
+        previous_role = block.get("role")
+        block["role"] = role
+        block["overridden"] = True
+        block["overrideReason"] = override.get("reason")
+        block["confidence"] = 0.99
+        if role.startswith("heading_"):
+            block["kind"] = "heading"
+            level = override.get("headingLevel")
+            block["level"] = int(level) if isinstance(level, int) else int(role.split("_")[1])
+        elif role in role_to_kind:
+            block["kind"] = role_to_kind[role]
+        applied.append({"blockId": block.get("id"), "previousRole": previous_role, "newRole": role})
+
+    ir["semanticOverrides"] = {
+        "appliedCount": len(applied),
+        "rejectedCount": len(rejected),
+        "applied": applied,
+        "rejected": rejected,
+    }
+
+    if applied:
+        # Rebuild the legacy heading tree view from overridden blocks so
+        # downstream planners see the corrected structure.
+        heading_tree = []
+        for block in blocks:
+            role = str(block.get("role") or "")
+            if block.get("kind") == "heading" and role.startswith("heading_"):
+                anchor = block.get("sourceAnchor") or {}
+                heading_tree.append(
+                    {
+                        "text": block.get("text"),
+                        "level": block.get("level"),
+                        "numberingFamily": "override" if block.get("overridden") else None,
+                        "sourceIndex": anchor.get("index"),
+                        "confidence": block.get("confidence"),
+                    }
+                )
+        if heading_tree:
+            ir["headingTree"] = heading_tree
+    return ir
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build ThesisIR from extracted source evidence.")
     parser.add_argument("--evidence-json", required=True, help="Path to source evidence JSON")
+    parser.add_argument(
+        "--semantic-overrides",
+        help="Optional agent-provided semantic override JSON ({\"overrides\": [{\"blockId\", \"role\", ...}]})",
+    )
     parser.add_argument("--output", "-o", help="Output JSON path")
     args = parser.parse_args()
 
     evidence = json.loads(Path(args.evidence_json).read_text(encoding="utf-8"))
     payload = build_thesis_ir(evidence)
+    if args.semantic_overrides:
+        overrides_path = Path(args.semantic_overrides)
+        if overrides_path.exists():
+            try:
+                overrides_payload = json.loads(overrides_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                payload["semanticOverrides"] = {
+                    "appliedCount": 0,
+                    "rejectedCount": 0,
+                    "applied": [],
+                    "rejected": [{"reason": f"overrides_file_invalid_json: {exc}"}],
+                }
+            else:
+                payload = apply_semantic_overrides(payload, overrides_payload)
+        else:
+            payload["semanticOverrides"] = {
+                "appliedCount": 0,
+                "rejectedCount": 0,
+                "applied": [],
+                "rejected": [{"reason": "overrides_file_not_found", "path": str(overrides_path)}],
+            }
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")

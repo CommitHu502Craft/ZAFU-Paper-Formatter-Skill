@@ -25,12 +25,25 @@ def select_strategy(thesis_ir: Dict[str, Any], preflight: Dict[str, Any]) -> Dic
     else:
         chosen = candidate
 
-    if chosen == "preserve_first" and conflicts and (preserveable_assets.get("images") or preserveable_assets.get("tables")):
+    body_extractable = bool(thesis_ir.get("bodyBlocks")) or bool(thesis_ir.get("semanticBlocks"))
+    has_assets = bool(preserveable_assets.get("images") or preserveable_assets.get("tables"))
+
+    if chosen == "preserve_first" and conflicts and has_assets:
         chosen = "hybrid_rebuild"
         reasons.append("docx_has_assets_and_numbering_conflicts")
     elif chosen != "audit_only" and structure_confidence < 0.4:
-        chosen = "audit_only"
-        reasons.append("low_structure_confidence")
+        # Deliver-first: low structure confidence keeps the source untouched
+        # via template_overlay (style/page rules only) instead of refusing to
+        # produce a deliverable. audit_only remains only for unextractable text.
+        if body_extractable:
+            chosen = "template_overlay"
+            reasons.append("low_structure_confidence_uses_template_overlay")
+        else:
+            chosen = "audit_only"
+            reasons.append("low_structure_confidence_and_no_extractable_body")
+    elif chosen == "audit_only" and body_extractable and source_type == "docx":
+        chosen = "template_overlay"
+        reasons.append("audit_only_candidate_upgraded_to_template_overlay_deliver_first")
 
     if document_risk_class == "C":
         reasons.append("risk_class_c_requires_mode_gate_outside_strategy")
@@ -43,6 +56,7 @@ def select_strategy(thesis_ir: Dict[str, Any], preflight: Dict[str, Any]) -> Dic
 
     execution_mode_map = {
         "preserve_first": "conservative-repair",
+        "template_overlay": "conservative-repair",
         "hybrid_rebuild": "conservative-repair",
         "text_rebuild": "rebuild",
         "audit_only": "audit-only",

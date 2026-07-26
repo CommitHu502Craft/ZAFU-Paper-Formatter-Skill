@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import copy
+import zipfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -148,6 +151,14 @@ def parse_args() -> argparse.Namespace:
         help="Compliance profile overlay; strict-school prefers template-conformant repair defaults over source-preserving heuristics.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Write the dispatch manifest only")
+    parser.add_argument(
+        "--semantic-overrides",
+        help="Optional agent-provided semantic override JSON applied when building ThesisIR",
+    )
+    parser.add_argument(
+        "--visual-refinement-plan",
+        help="Optional visual_refinement_plan.json; when given, a single whitelisted visual refinement pass runs after the first repair and the result is re-rendered",
+    )
     return parser.parse_args()
 
 
@@ -345,8 +356,11 @@ def numbering_command(output_dir: Path) -> List[str]:
     return [PYTHON, "scripts/recover_numbering.py", str(evidence_output_path(output_dir)), "--output", str(numbering_output_path(output_dir))]
 
 
-def thesis_ir_command(output_dir: Path) -> List[str]:
-    return [PYTHON, "scripts/thesis_ir.py", "--evidence-json", str(evidence_output_path(output_dir)), "--output", str(thesis_ir_output_path(output_dir))]
+def thesis_ir_command(output_dir: Path, semantic_overrides: Optional[str] = None) -> List[str]:
+    command = [PYTHON, "scripts/thesis_ir.py", "--evidence-json", str(evidence_output_path(output_dir)), "--output", str(thesis_ir_output_path(output_dir))]
+    if semantic_overrides:
+        command.extend(["--semantic-overrides", str(Path(semantic_overrides).resolve())])
+    return command
 
 
 def thesis_ir_validation_command(output_dir: Path) -> List[str]:
@@ -608,33 +622,43 @@ def profile_policy_flag(profile: ProfileConfig, key: str, default: bool = False)
 
 
 def decide_mode(requested_mode: str, preflight_report: Dict[str, object], source_kind_value: str, profile: ProfileConfig) -> Tuple[str, List[str]]:
+    """Deliver-first mode decision.
+
+    The formatter always tries to produce a repaired deliverable. Risk class C
+    downgrades to audit-only ONLY when the source itself is not reliably
+    extractable (parse failure / body loss signals); style pollution alone is
+    handled by strategy selection (preserve_first / hybrid_rebuild) instead of
+    refusing to format. Users can always force audit-only explicitly.
+    """
     effective_mode = requested_mode
     reasons: List[str] = []
     recommended_mode = preflight_report.get("recommendedMode")
     document_risk_class = preflight_report.get("documentRiskClass")
-    allow_risk_class_c_repair = (
-        source_kind_value == "docx"
-        and requested_mode != "audit-only"
-        and profile_policy_flag(profile, "allow_conservative_repair_for_risk_class_c", False)
-    )
 
     if source_kind_value == "text" and requested_mode == "conservative-repair":
         effective_mode = "rebuild"
         reasons.append("text_source_conservative_repair_upgraded_to_rebuild")
-    if document_risk_class == "C" and effective_mode != "audit-only":
-        if allow_risk_class_c_repair:
-            reasons.append("risk_class_c_kept_repair_mode_due_to_profile_policy")
-        else:
-            effective_mode = "audit-only"
-            reasons.append("risk_class_c_forces_audit_only")
-    elif recommended_mode == "audit-only" and effective_mode != "audit-only":
-        if allow_risk_class_c_repair and document_risk_class == "C":
-            reasons.append("preflight_recommended_audit_only_overridden_by_profile_policy")
-        else:
-            effective_mode = "audit-only"
-            reasons.append("preflight_recommended_audit_only")
-    elif source_kind_value == "docx" and recommended_mode in {"conservative-repair", "rebuild"} and requested_mode == "audit-only":
+
+    if requested_mode == "audit-only":
         reasons.append("user_requested_audit_only")
+        return "audit-only", reasons
+
+    hard_stop_signals = {
+        "document_xml_unparseable",
+        "docx_package_corrupt",
+        "body_text_unextractable",
+        "body_text_mostly_lost",
+    }
+    risk_reasons = {str(item.get("kind") or item) if isinstance(item, dict) else str(item) for item in (preflight_report.get("riskReasons") or [])}
+    if risk_reasons & hard_stop_signals:
+        effective_mode = "audit-only"
+        reasons.append("source_not_reliably_extractable_forces_audit_only")
+        return effective_mode, reasons
+
+    if document_risk_class == "C":
+        reasons.append("risk_class_c_continues_with_deliver_first_policy")
+    if recommended_mode == "audit-only":
+        reasons.append("preflight_recommended_audit_only_downgraded_to_warning")
     return effective_mode, reasons
 
 
@@ -811,6 +835,224 @@ def hybrid_docx_commands(input_path: Path, profile: ProfileConfig, output_dir: P
     return commands
 
 
+W_XML_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+M_XML_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+
+
+def count_docx_assets(docx_path: Path) -> Optional[Dict[str, int]]:
+    """Count preservable assets for before/after comparison."""
+    try:
+        with zipfile.ZipFile(docx_path) as zf:
+            names = zf.namelist()
+            root = ET.fromstring(zf.read("word/document.xml"))
+    except (OSError, KeyError, zipfile.BadZipFile, ET.ParseError):
+        return None
+    text_chars = sum(len(node.text or "") for node in root.iter(f"{{{W_XML_NS}}}t"))
+    return {
+        "mediaFiles": sum(1 for name in names if name.startswith("word/media/")),
+        "tables": sum(1 for _ in root.iter(f"{{{W_XML_NS}}}tbl")),
+        "drawings": sum(1 for _ in root.iter(f"{{{W_XML_NS}}}drawing")),
+        "equations": sum(1 for _ in root.iter(f"{{{M_XML_NS}}}oMath")),
+        "textChars": text_chars,
+    }
+
+
+def build_asset_preservation_report(input_path: Path, output_dir: Path) -> Optional[Dict[str, object]]:
+    repaired = output_dir / "repaired.docx"
+    if input_path.suffix.lower() != ".docx" or not repaired.exists():
+        return None
+    before = count_docx_assets(input_path)
+    after = count_docx_assets(repaired)
+    if before is None or after is None:
+        return None
+    warnings: List[str] = []
+    for key, label in (("mediaFiles", "图片等媒体文件"), ("tables", "表格"), ("equations", "公式"), ("drawings", "图形对象")):
+        b, a = before.get(key, 0), after.get(key, 0)
+        if b and a < b:
+            warnings.append(f"{label}数量减少: {b} -> {a}")
+    if before.get("textChars", 0) and after.get("textChars", 0) < before["textChars"] * 0.6:
+        warnings.append(f"正文字符量大幅下降: {before['textChars']} -> {after['textChars']}")
+    attachment_report_path = hybrid_attachment_report_path(output_dir)
+    manual_review_assets = 0
+    if warnings and attachment_report_path.exists():
+        attachment_report = read_json(attachment_report_path)
+        manual_review_assets = int(attachment_report.get("manualReviewCount") or 0)
+        if manual_review_assets:
+            warnings.append(
+                f"其中 {manual_review_assets} 个资产因锚点不确定进入人工检查清单(未静默丢弃,见 debug/hybrid_attachment_report.json)"
+            )
+    return {
+        "before": before,
+        "after": after,
+        "warnings": warnings,
+        "manualReviewAssets": manual_review_assets,
+        "passed": not warnings,
+    }
+
+
+DEBUG_ARTIFACT_NAMES = [
+    "source_evidence.json",
+    "numbering_recovery.json",
+    "thesis_ir.json",
+    "thesis_ir_validation.json",
+    "strategy_selection.json",
+    "citation_conversion_plan.json",
+    "preflight_report.json",
+    "source_preflight_report.json",
+    "audit_report.json",
+    "repair_plan.json",
+    "repair_execution.json",
+    "validation_report.json",
+    "review_summary.json",
+    "dispatch_manifest.json",
+    "effective_rules.yaml",
+    "hybrid_rebuild_report.json",
+    "hybrid_attachment_report.json",
+    "visual_refinement_execution.json",
+    "template_baseline.json",
+    "asset_preservation.json",
+    "template_regions.json",
+]
+
+
+def run_visual_refinement_pass(output_dir: Path, plan_path: Path) -> Optional[Dict[str, object]]:
+    """Single whitelisted visual refinement pass: pass1 is preserved, the
+    refined result becomes the final repaired.docx, then it is re-rendered."""
+    repaired = output_dir / "repaired.docx"
+    if not repaired.exists() or not plan_path.exists():
+        return None
+    pass1 = output_dir / "repaired_pass1.docx"
+    shutil.copy2(repaired, pass1)
+    execution_report = output_dir / "visual_refinement_execution.json"
+    refine_cmd = [
+        PYTHON,
+        "scripts/apply_visual_refinements.py",
+        str(pass1),
+        str(repaired),
+        "--plan-json",
+        str(plan_path),
+        "--report-json",
+        str(execution_report),
+    ]
+    completed = subprocess.run(refine_cmd, cwd=str(ROOT), check=False)
+    if completed.returncode != 0:
+        # Refinement must never destroy the deliverable; restore pass1.
+        shutil.copy2(pass1, repaired)
+        return {"status": "failed", "restoredPass1": True}
+    render_cmd = [
+        PYTHON,
+        "scripts/render_validate_docx.py",
+        str(repaired),
+        "--output-dir",
+        str(render_output_dir(output_dir)),
+        "--output",
+        str(render_report_path(output_dir)),
+    ]
+    subprocess.run(render_cmd, cwd=str(ROOT), check=False)
+    payload = read_json(execution_report) if execution_report.exists() else {}
+    payload["status"] = "ok"
+    payload["pass1Docx"] = str(pass1)
+    return payload
+
+
+def finalize_outputs(output_dir: Path, input_path: Path) -> Dict[str, object]:
+    """Copy user-facing deliverables to output/final and internal reports to
+    output/debug. Legacy paths remain in place for compatibility."""
+    final_dir = output_dir / "final"
+    debug_dir = output_dir / "debug"
+    final_dir.mkdir(parents=True, exist_ok=True)
+    debug_dir.mkdir(parents=True, exist_ok=True)
+
+    deliverables: Dict[str, object] = {}
+    repaired = output_dir / "repaired.docx"
+    if repaired.exists():
+        shutil.copy2(repaired, final_dir / "repaired.docx")
+        deliverables["docx"] = str(final_dir / "repaired.docx")
+
+    render_report = read_json(render_report_path(output_dir)) if render_report_path(output_dir).exists() else {}
+    pdf_source = render_report.get("pdfPath")
+    if isinstance(pdf_source, str) and Path(pdf_source).exists():
+        shutil.copy2(pdf_source, final_dir / "repaired.pdf")
+        deliverables["pdf"] = str(final_dir / "repaired.pdf")
+
+    for index, sheet in enumerate(render_report.get("contactSheets") or []):
+        sheet_path = Path(str(sheet))
+        if sheet_path.exists():
+            name = "contact_sheet.png" if index == 0 else f"contact_sheet_{index + 1}.png"
+            shutil.copy2(sheet_path, final_dir / name)
+            deliverables.setdefault("contactSheets", []).append(str(final_dir / name))  # type: ignore[union-attr]
+
+    critical_src = render_output_dir(output_dir) / "critical_pages"
+    if critical_src.exists():
+        critical_dst = final_dir / "critical_pages"
+        if critical_dst.exists():
+            shutil.rmtree(critical_dst)
+        shutil.copytree(critical_src, critical_dst)
+        deliverables["criticalPagesDir"] = str(critical_dst)
+
+    for name in DEBUG_ARTIFACT_NAMES:
+        source = output_dir / name
+        if source.exists() and source.is_file():
+            shutil.copy2(source, debug_dir / name)
+    for extra in ("semantic_pages.json", "visual_review_manifest.json", "render_validation_report.json"):
+        source = render_output_dir(output_dir) / extra
+        if source.exists():
+            shutil.copy2(source, debug_dir / extra)
+
+    report_html = final_dir / "review_report.html"
+    subprocess.run(
+        [PYTHON, "scripts/generate_review_report.py", "--output-dir", str(output_dir), "--report-html", str(report_html)],
+        cwd=str(ROOT),
+        check=False,
+    )
+    if report_html.exists():
+        deliverables["reviewReport"] = str(report_html)
+    deliverables["finalDir"] = str(final_dir)
+    deliverables["debugDir"] = str(debug_dir)
+    return deliverables
+
+
+def print_cli_summary(manifest: Dict[str, object], deliverables: Dict[str, object], output_dir: Path) -> None:
+    quality_gate = manifest.get("qualityGate") or {}
+    lines = ["", "=" * 46, "论文排版完成"]
+    if deliverables.get("docx"):
+        lines.append(f"  Word 文件: {deliverables['docx']}")
+    else:
+        lines.append("  Word 文件: 未生成(见 debug 报告)")
+    if deliverables.get("pdf"):
+        lines.append(f"  PDF 预览: {deliverables['pdf']}")
+    else:
+        lines.append("  PDF 预览: 未生成(本机缺少渲染工具,不影响 Word 文件)")
+    if deliverables.get("reviewReport"):
+        lines.append(f"  检查报告: {deliverables['reviewReport']}")
+    sheets = deliverables.get("contactSheets") or []
+    if sheets:
+        lines.append(f"  全文缩略图: {sheets[0]}")
+    risk = (manifest.get("preflightDecision") or {}).get("documentRiskClass")
+    strategy = (manifest.get("strategySelection") or {}).get("chosenStrategy")
+    lines.append(f"  风险等级: {risk or '—'}    处理策略: {strategy or '—'}")
+    asset_report = manifest.get("assetPreservation")
+    if isinstance(asset_report, dict):
+        if asset_report.get("passed"):
+            after = asset_report.get("after") or {}
+            lines.append(
+                f"  资产保留: 图片/媒体 {after.get('mediaFiles', 0)}、表格 {after.get('tables', 0)}、公式 {after.get('equations', 0)},与源文档一致"
+            )
+        else:
+            for warning in (asset_report.get("warnings") or [])[:3]:
+                lines.append(f"  资产警告: {warning}")
+    if isinstance(quality_gate, dict) and quality_gate:
+        hard = quality_gate.get("hardFailureCount") or 0
+        warn = quality_gate.get("warningCount") or 0
+        if hard:
+            lines.append(f"  质量门: {hard} 个硬性问题、{warn} 个警告(结果仍已生成,请查看报告)")
+        else:
+            lines.append(f"  质量门: 通过({warn} 个警告,不影响交付)")
+    lines.append("  提示: 在 Word 中打开后请更新目录域(Ctrl+A → F9),并核对封面个人信息。")
+    lines.append("=" * 46)
+    print("\n".join(lines))
+
+
 def write_manifest(output_dir: Path, manifest: Dict[str, object], commands: List[List[str]]) -> None:
     payload = dict(manifest)
     payload["commands"] = commands
@@ -818,6 +1060,11 @@ def write_manifest(output_dir: Path, manifest: Dict[str, object], commands: List
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except (ValueError, OSError):
+            pass
     args = parse_args()
     input_path = Path(args.input).resolve()
     if not input_path.exists():
@@ -843,7 +1090,7 @@ def main() -> None:
     kind = manifest["sourceKind"]
     evidence_cmd = evidence_command(input_path, profile, output_dir)
     numbering_cmd = numbering_command(output_dir)
-    ir_cmd = thesis_ir_command(output_dir)
+    ir_cmd = thesis_ir_command(output_dir, args.semantic_overrides)
     ir_validation_cmd = thesis_ir_validation_command(output_dir)
     preflight_cmd = preflight_command(input_path, profile, output_dir)
     citation_cmd = citation_conversion_command(profile, output_dir)
@@ -887,32 +1134,12 @@ def main() -> None:
         else:
             commands = docx_commands(input_path, profile, effective_mode, output_dir)
         if effective_mode != "audit-only" and preflight_report.get("confirmationRequests"):
-            if profile_policy_flag(profile, "continue_safe_subset_repair_when_confirmation_requests_present", False):
-                manifest["decisionReasons"] = list(manifest.get("decisionReasons") or []) + [
-                    "docx_safe_subset_repair_continues_despite_confirmation_requests"
-                ]
-            else:
-                update_manifest_from_preflight(
-                    manifest,
-                    preflight_report,
-                    effective_mode=effective_mode,
-                    status="stopped_for_confirmation",
-                    stop_reason="preflight_confirmation_requests_block_automatic_repair",
-                )
-                update_manifest_with_outputs(manifest, input_path, output_dir)
-                write_manifest(output_dir, manifest, pipeline_prefix_commands)
-                print(
-                    json.dumps(
-                        {
-                            "status": "stopped_for_confirmation",
-                            "outputDir": str(output_dir),
-                            "mode": effective_mode,
-                            "confirmationRequestCount": len(preflight_report.get("confirmationRequests") or []),
-                        },
-                        ensure_ascii=False,
-                    )
-                )
-                return
+            # Deliver-first: confirmation requests become manual-review warnings
+            # in the report instead of blocking the whole run.
+            manifest["decisionReasons"] = list(manifest.get("decisionReasons") or []) + [
+                "confirmation_requests_downgraded_to_manual_review_warnings"
+            ]
+            manifest["pendingConfirmationRequests"] = list(preflight_report.get("confirmationRequests") or [])[:40]
     else:
         if effective_mode == "audit-only":
             update_manifest_from_preflight(
@@ -927,27 +1154,10 @@ def main() -> None:
             print(json.dumps({"status": "stopped_after_preflight", "outputDir": str(output_dir), "mode": effective_mode}, ensure_ascii=False))
             return
         if preflight_report.get("confirmationRequests"):
-            update_manifest_from_preflight(
-                manifest,
-                preflight_report,
-                effective_mode=effective_mode,
-                status="stopped_for_confirmation",
-                stop_reason="text_source_confirmation_requests_block_build",
-            )
-            update_manifest_with_outputs(manifest, input_path, output_dir)
-            write_manifest(output_dir, manifest, pipeline_prefix_commands)
-            print(
-                json.dumps(
-                    {
-                        "status": "stopped_for_confirmation",
-                        "outputDir": str(output_dir),
-                        "mode": effective_mode,
-                        "confirmationRequestCount": len(preflight_report.get("confirmationRequests") or []),
-                    },
-                    ensure_ascii=False,
-                )
-            )
-            return
+            manifest["decisionReasons"] = list(manifest.get("decisionReasons") or []) + [
+                "confirmation_requests_downgraded_to_manual_review_warnings"
+            ]
+            manifest["pendingConfirmationRequests"] = list(preflight_report.get("confirmationRequests") or [])[:40]
         commands = text_commands(input_path, profile, output_dir)
 
     update_manifest_from_preflight(manifest, preflight_report, effective_mode=effective_mode, status="running")
@@ -959,6 +1169,11 @@ def main() -> None:
 
     if kind == "docx" and str(strategy_report.get("chosenStrategy") or "") == "hybrid_rebuild":
         refresh_hybrid_execution_report(output_dir, input_path, strategy_report)
+
+    if args.visual_refinement_plan:
+        refinement_result = run_visual_refinement_pass(output_dir, Path(args.visual_refinement_plan).resolve())
+        if refinement_result is not None:
+            manifest["visualRefinement"] = refinement_result
 
     review_summary = build_review_summary(output_dir, manifest)
     if review_summary is not None:
@@ -972,12 +1187,34 @@ def main() -> None:
     else:
         manifest["status"] = "completed"
     update_manifest_with_outputs(manifest, input_path, output_dir)
+
+    asset_report = build_asset_preservation_report(input_path, output_dir)
+    if asset_report is not None:
+        (output_dir / "asset_preservation.json").write_text(json.dumps(asset_report, ensure_ascii=False, indent=2), encoding="utf-8")
+        manifest["assetPreservation"] = asset_report
+
+    if profile.template_docx:
+        subprocess.run(
+            [
+                PYTHON,
+                "scripts/analyze_template_regions.py",
+                str(profile.template_docx),
+                "--output",
+                str(output_dir / "template_regions.json"),
+            ],
+            cwd=str(ROOT),
+            check=False,
+        )
+
+    deliverables = finalize_outputs(output_dir, input_path)
+    manifest["deliverables"] = deliverables
     write_manifest(output_dir, manifest, pipeline_prefix_commands + commands)
     print(
         json.dumps(
             {
                 "status": "ok",
                 "outputDir": str(output_dir),
+                "finalDir": deliverables.get("finalDir"),
                 "productMode": PRODUCT_MODE,
                 "expertMode": effective_mode,
                 "qualityGatePassed": ((manifest.get("qualityGate") or {}).get("passed") if manifest.get("qualityGate") else None),
@@ -985,6 +1222,7 @@ def main() -> None:
             ensure_ascii=False,
         )
     )
+    print_cli_summary(manifest, deliverables, output_dir)
 
 
 if __name__ == "__main__":

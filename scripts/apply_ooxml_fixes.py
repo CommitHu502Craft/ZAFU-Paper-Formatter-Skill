@@ -229,7 +229,70 @@ def paragraph_has_toc_field(paragraph: ET.Element) -> bool:
         instr = field.attrib.get(qn("instr")) or ""
         if "TOC" in instr.upper():
             return True
+    for instr_node in paragraph.findall(".//w:instrText", NS):
+        instr = (instr_node.text or "").strip().upper()
+        if instr.startswith("TOC"):
+            return True
     return False
+
+
+def normalize_single_toc(document_root: ET.Element) -> List[Dict[str, Any]]:
+    """Keep exactly one TOC title and one TOC field.
+
+    Duplicate adjacent-region TOC titles (a hybrid-rebuild hazard) are removed;
+    if the surviving title has no TOC field within the next two paragraphs,
+    one is inserted so Word can populate the directory on field update.
+    """
+    body = document_root.find("w:body", NS)
+    if body is None:
+        return []
+    logs: List[Dict[str, Any]] = []
+    paragraphs = paragraph_nodes(body)
+    title_indexes = [
+        index
+        for index, paragraph in enumerate(paragraphs)
+        if normalize_front_matter_token(paragraph_text(paragraph)) == "目录"
+    ]
+    field_indexes = [index for index, paragraph in enumerate(paragraphs) if paragraph_has_toc_field(paragraph)]
+
+    if len(title_indexes) > 1:
+        keeper = title_indexes[0]
+        if field_indexes:
+            # Prefer the title closest before the first real TOC field.
+            preceding = [idx for idx in title_indexes if idx <= field_indexes[0] + 1]
+            keeper = preceding[-1] if preceding else title_indexes[0]
+        for index in title_indexes:
+            if index == keeper:
+                continue
+            node = paragraphs[index]
+            parent_index = find_child_index(body, node)
+            if parent_index is not None:
+                body.remove(node)
+                logs.append({"action": "remove_duplicate_toc_title", "paragraphIndex": index})
+        paragraphs = paragraph_nodes(body)
+        title_indexes = [
+            index
+            for index, paragraph in enumerate(paragraphs)
+            if normalize_front_matter_token(paragraph_text(paragraph)) == "目录"
+        ]
+        field_indexes = [index for index, paragraph in enumerate(paragraphs) if paragraph_has_toc_field(paragraph)]
+
+    if len(field_indexes) > 1:
+        for index in field_indexes[1:]:
+            node = paragraphs[index]
+            if node in list(body):
+                body.remove(node)
+                logs.append({"action": "remove_duplicate_toc_field", "paragraphIndex": index})
+        paragraphs = paragraph_nodes(body)
+        field_indexes = [index for index, paragraph in enumerate(paragraphs) if paragraph_has_toc_field(paragraph)]
+
+    if title_indexes and not field_indexes:
+        title_node = paragraphs[title_indexes[0]]
+        child_index = find_child_index(body, title_node)
+        if child_index is not None:
+            body.insert(child_index + 1, build_toc_field_paragraph())
+            logs.append({"action": "insert_missing_toc_field_after_title", "paragraphIndex": title_indexes[0]})
+    return logs
 
 
 def build_toc_title_paragraph(page_break_before: bool = False) -> ET.Element:
@@ -1070,6 +1133,9 @@ def style_spec_from_rules(rules: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             "jc": source.get("align"),
             "outlineLvl": source.get("outline_level"),
             "pageBreakBefore": source.get("page_break_before"),
+            "keepNext": source.get("keep_with_next"),
+            "keepLines": source.get("keep_lines"),
+            "widowControl": source.get("widow_control"),
             "spacing": {
                 "beforePt": source.get("spacing_before_pt"),
                 "beforeLines": source.get("spacing_before_lines"),
@@ -1148,6 +1214,22 @@ def apply_spacing(ppr: ET.Element, spacing_spec: Dict[str, Any]) -> None:
             del spacing.attrib[qn("lineRule")]
 
 
+def apply_pagination_flags(ppr: ET.Element, spec: Dict[str, Any]) -> None:
+    """keepNext / keepLines / widowControl from a style spec."""
+    for spec_key, tag in (("keepNext", "keepNext"), ("keepLines", "keepLines")):
+        node = ppr.find(f"w:{tag}", NS)
+        if spec.get(spec_key) is True:
+            if node is None:
+                ET.SubElement(ppr, qn(tag))
+        elif spec.get(spec_key) is False and node is not None:
+            ppr.remove(node)
+    if spec.get("widowControl") is True:
+        node = ppr.find("w:widowControl", NS)
+        if node is None:
+            node = ET.SubElement(ppr, qn("widowControl"))
+        node.attrib.pop(qn("val"), None)
+
+
 def ensure_style(styles_root: ET.Element, spec: Dict[str, Any]) -> None:
     style = None
     for node in styles_root.findall("w:style", NS):
@@ -1188,6 +1270,7 @@ def ensure_style(styles_root: ET.Element, spec: Dict[str, Any]) -> None:
             ET.SubElement(ppr, qn("pageBreakBefore"))
     elif spec.get("pageBreakBefore") is False and page_break_before is not None:
         ppr.remove(page_break_before)
+    apply_pagination_flags(ppr, spec)
     ind_spec = spec.get("ind") or {}
     if ind_spec.get("firstLineChars") is not None:
         ind = ensure_child(ppr, "ind")
@@ -1557,6 +1640,9 @@ def ensure_paragraph_centered(paragraph: ET.Element) -> None:
     if jc is None:
         jc = ET.SubElement(ppr, qn("jc"))
     jc.set(qn("val"), "center")
+    # Keep asset paragraphs glued to their caption across page breaks.
+    if ppr.find("w:keepNext", NS) is None:
+        ET.SubElement(ppr, qn("keepNext"))
 
 
 def split_mixed_drawing_paragraph(paragraph: ET.Element) -> Optional[ET.Element]:
@@ -1577,6 +1663,59 @@ def split_mixed_drawing_paragraph(paragraph: ET.Element) -> Optional[ET.Element]
         paragraph.remove(run)
         new_paragraph.append(run)
     return new_paragraph
+
+
+WP_NS_URI = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+EMU_PER_CM = 360000
+
+
+def normalize_oversized_inline_images(
+    document_root: ET.Element,
+    rules: Dict[str, Any],
+    protected_prefix_end: int,
+) -> List[Dict[str, Any]]:
+    """Proportionally shrink inline images wider than the printable body width."""
+    page = rules.get("page") or {}
+    paper_width_cm = 21.0  # A4
+    left = float(page.get("margin_left_cm") or 2.7)
+    right = float(page.get("margin_right_cm") or 2.7)
+    max_width_emu = int((paper_width_cm - left - right) * EMU_PER_CM)
+    body = document_root.find("w:body", NS)
+    if body is None or max_width_emu <= 0:
+        return []
+    logs: List[Dict[str, Any]] = []
+    for paragraph_index, paragraph in enumerate(paragraph_nodes(body)):
+        if paragraph_index < protected_prefix_end:
+            continue
+        for drawing in paragraph.findall(".//w:drawing", NS):
+            inline = drawing.find(f"{{{WP_NS_URI}}}inline")
+            if inline is None:
+                continue
+            extent = inline.find(f"{{{WP_NS_URI}}}extent")
+            if extent is None:
+                continue
+            cx = safe_int(extent.attrib.get("cx")) or 0
+            cy = safe_int(extent.attrib.get("cy")) or 0
+            if cx <= max_width_emu or cx <= 0:
+                continue
+            ratio = max_width_emu / cx
+            extent.set("cx", str(max_width_emu))
+            extent.set("cy", str(int(cy * ratio)))
+            for ext in drawing.findall(f".//{{{NS['a']}}}xfrm/{{{NS['a']}}}ext"):
+                ext_cx = safe_int(ext.attrib.get("cx")) or 0
+                ext_cy = safe_int(ext.attrib.get("cy")) or 0
+                if ext_cx > max_width_emu:
+                    ext.set("cx", str(max_width_emu))
+                    ext.set("cy", str(int(ext_cy * ratio)))
+            logs.append(
+                {
+                    "action": "scale_oversized_inline_image",
+                    "paragraphIndex": paragraph_index,
+                    "originalWidthCm": round(cx / EMU_PER_CM, 2),
+                    "newWidthCm": round(max_width_emu / EMU_PER_CM, 2),
+                }
+            )
+    return logs
 
 
 def normalize_caption_adjacent_figures(body: ET.Element, protected_prefix_end: int) -> List[Dict[str, Any]]:
@@ -2174,6 +2313,13 @@ def normalize_tables(document_root: ET.Element, protected_prefix_end: int, rules
         rows = child.findall("w:tr", NS)
         header_row_count = detect_header_row_count(rows, table_rules)
         group_rule_rows = detect_group_rule_rows(rows, header_row_count, table_rules)
+        for header_row in rows[:header_row_count]:
+            header_trpr = header_row.find("w:trPr", NS)
+            if header_trpr is None:
+                header_trpr = ET.Element(qn("trPr"))
+                header_row.insert(0, header_trpr)
+            if header_trpr.find("w:tblHeader", NS) is None:
+                ET.SubElement(header_trpr, qn("tblHeader"))
         cell_count = 0
         cell_paragraph_count = 0
         for row_index, row in enumerate(rows):
@@ -2445,6 +2591,15 @@ def normalize_front_abstract_block(
             if not text:
                 continue
             if title_en_index is None:
+                # Sources without an English title repeat: the first EN block
+                # may already be the abstract or keywords; don't consume it
+                # as a title.
+                if text.startswith(("Abstract", "ABSTRACT")):
+                    abstract_paragraph_en_index = index
+                    continue
+                if text.startswith(("Keywords", "Key words", "KEY WORDS")):
+                    keywords_en_index = index
+                    break
                 title_en_index = index
                 continue
             if author_en_index is None and not (text.startswith("Abstract") or text.startswith("ABSTRACT") or text.startswith("Keywords")):
@@ -3673,6 +3828,8 @@ def main() -> None:
 
     execution_log.extend(normalize_plain_text_equations(document_root, protected_prefix_end))
     execution_log.extend(normalize_caption_adjacent_figures(body, protected_prefix_end))
+    execution_log.extend(normalize_oversized_inline_images(document_root, rules, protected_prefix_end))
+    execution_log.extend(normalize_single_toc(document_root))
     execution_log.extend(normalize_references_section(document_root, protected_prefix_end, style_specs, rules))
     body_paragraphs = paragraph_nodes(body)
 

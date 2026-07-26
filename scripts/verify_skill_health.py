@@ -39,6 +39,22 @@ def main():
     all_ok &= check_file(skill_dir / "scripts" / "build_docx_from_markdown.py", "Build script")
     all_ok &= check_file(skill_dir / "scripts" / "apply_ooxml_fixes.py", "Repair script")
     all_ok &= check_file(skill_dir / "scripts" / "docx_ooxml.py", "OOXML engine")
+    all_ok &= check_file(skill_dir / "scripts" / "render_pdf_backends.py", "PDF conversion backends")
+    all_ok &= check_file(skill_dir / "scripts" / "render_validate_docx.py", "Render validation")
+    all_ok &= check_file(skill_dir / "scripts" / "apply_visual_refinements.py", "Visual refinement executor")
+    all_ok &= check_file(skill_dir / "scripts" / "suggest_visual_refinements.py", "No-vision plan suggester")
+    all_ok &= check_file(skill_dir / "scripts" / "generate_review_report.py", "HTML report generator")
+    all_ok &= check_file(skill_dir / "scripts" / "analyze_template_regions.py", "Template region analyzer")
+
+    # Visual review loop contracts
+    print()
+    print("1b. Visual review loop:")
+    render_script = skill_dir / "scripts" / "render_validate_docx.py"
+    all_ok &= check_script_content(render_script, "locate_semantic_pages", "Semantic page location")
+    all_ok &= check_script_content(render_script, "build_contact_sheets", "Contact sheet generation")
+    all_ok &= check_script_content(render_script, "visualFindings", "Text/geometry heuristics")
+    all_ok &= check_script_content(skill_dir / "scripts" / "thesis_ir.py", "apply_semantic_overrides", "Semantic overrides hook")
+    all_ok &= check_script_content(skill_dir / "scripts" / "thesis_format.py", "visual_refinement_plan", "Refinement pass wiring")
 
     # Check template
     print()

@@ -1,671 +1,127 @@
 ---
 name: thesis-docx-formatter
-description: Create, audit, repair, and standardize graduation theses from DOCX, Markdown, or plain-text input through a unified semantic model, profile rules, risk classification, and deterministic OOXML writes. Use when Codex must preserve thesis wording and immutable front matter, deeply inspect styles, numbering, sections, fonts, tables, figures, equations, citations, or page numbering, safely fix high-confidence layout drift, and emit auditable reports and render checks.
+description: 中文本科毕业论文自动排版(默认浙江农林大学 ZAFU 规范)。把 DOCX、Markdown 或 TXT 论文一键排成符合学校要求的 Word 并渲染 PDF 检查:标题层级与目录、页码分节、三线表、图题表题、LaTeX 公式转 Word 公式、摘要关键词、参考文献版式。触发词:毕业论文、论文排版、论文格式、浙江农林大学、Word 排版、DOCX 修复、三线表、Markdown 转论文。不用于普通代码任务或非论文类文档编辑。
 ---
 
-# Thesis DOCX Formatter
+# 毕业论文一键排版 Skill
 
-## 1. Purpose and scope
+把一份毕业论文(DOCX / Markdown / TXT)自动排版为符合学校规范的 Word,渲染 PDF 复查页面效果,最多做一次视觉二次修复后交付。
 
-This skill upgrades a thesis document into a more compliant and reviewable Word deliverable.
+## 输入与输出
 
-Primary goal:
-- perform **high-confidence, low-risk, auditable, rollback-friendly** thesis formatting repair
-- preserve thesis wording and Word structures whenever possible
-- stop at audit or manual review when the document is structurally risky
+输入:一份 `.docx` / `.md` / `.txt` 论文文件(原文件永不修改)。
 
-This skill is **not**:
-- a universal Word control layer
-- a generic “beautify any DOCX” tool
-- an AI thesis rewriter
-- a pipeline that forces all inputs through Markdown
+输出(`output/final/`,普通用户只需要看这里):
 
-## Environment bootstrap
+| 文件 | 说明 |
+|---|---|
+| `repaired.docx` | 排版完成、仍可编辑的 Word |
+| `repaired.pdf` | 渲染预览(本机有 LibreOffice/Word/WPS 时) |
+| `review_report.html` | 中文检查报告(含人工检查清单) |
+| `contact_sheet.png` | 全文页面缩略图 |
+| `critical_pages/` | 封面、目录、摘要、正文首页、参考文献等关键页高清图 |
 
-- Prefer an isolated project environment. Use `uv` when available; otherwise use
-  standard Python `venv` and `pip` with `requirements.txt`.
-- On networks in mainland China, or when dependency resolution is demonstrably
-  slow or failing, prefer a trusted domestic Python package mirror such as the
-  Tsinghua University or Alibaba Cloud mirror for the current install command.
-- Respect an existing user or organization package-index configuration. Do not
-  overwrite global `pip`, `uv`, Conda, or system configuration without explicit
-  approval.
-- Keep the official PyPI index as a documented fallback when a mirror is stale,
-  incomplete, or unavailable. Never disable TLS verification or use an unknown
-  binary source to bypass certificate or download problems.
-- Record the Python version, installer, selected index, and installed dependency
-  versions in the execution report when the environment is bootstrapped.
+中间 JSON 报告都在 `output/debug/`,普通用户无需查看。
 
-## 2. Core principle: safe subset, not universal Word control
+## 核心原则
 
-The core design rule is:
+1. **不改写正文**——只调整格式,从不改动论文文字内容。
+2. **不猜测个人信息**——姓名、学号、学院、题目等留给用户填写。
+3. **尽量交付**——除非 DOCX 损坏、核心 XML 无法解析或正文严重丢失,警告不阻止生成结果;剩余风险写进报告。
+4. **不覆盖原文件**——所有结果写入输出目录。
+5. **不静默删除**图片、表格、公式、脚注、尾注、批注或修订。
 
-> automatically repair only a safe subset of thesis formatting problems; audit and escalate everything else.
-
-This skill does not aim to fully control Word behavior. It aims to fix the common and defensible subset of graduation-thesis problems while leaving complex or destructive operations behind explicit review gates.
-
-## 3. Input routes: md/txt create vs docx repair
-
-Two routes must coexist.
-
-### Markdown / TXT creation route
-
-Use this route when the source is text-first and the user wants to generate a standard thesis `.docx`.
-
-Pipeline:
+## Agent 标准工作流(一次排版 + 最多一次视觉修复)
 
 ```text
-md/txt -> text-first IR -> preflight -> build source docx -> inspect -> plan -> OOXML repair -> validate -> render preview
+1 自动排版      uv run python scripts/thesis_format.py 论文.docx --profile zafu_2022 --output-dir output
+2 视觉检查      按下方 A/B 两条路线之一执行(先自问:我能不能看图?)
+3 发现问题      编写 visual_refinement_plan.json(白名单动作,见下)
+4 二次修复      uv run python scripts/thesis_format.py 论文.docx --profile zafu_2022 --output-dir output \
+                 --visual-refinement-plan visual_refinement_plan.json
+5 交付          把 output/final/ 的文件路径告诉用户,转述 review_report.html 的人工检查清单
 ```
 
-Why this route exists:
-- Markdown and TXT are easy to generate, diff, and version
-- they are useful for thesis drafting from scratch
-- they are not the lossless truth layer for Word repair
+第一次结果保留为 `output/repaired_pass1.docx`;最终结果始终是 `output/final/repaired.docx`。**最多执行一次视觉二次修复**,不要循环。
 
-### DOCX repair route
+### 步骤 2A:有读图能力(多模态)的 Agent
 
-Use this route when the user already has a Word thesis and wants conservative repair.
+- 查看 `output/final/contact_sheet.png`:有无空白页、异常留白、标题落在页尾、表格图片跨页断裂;
+- 查看 `critical_pages/`:封面是否干净、目录是否只有一个、摘要标签是否加粗、正文页码是否从 1 开始、参考文献版式;
+- 结合 `output/debug/visual_review_manifest.json` 的 `visualFindings` 交叉确认。
 
-Pipeline:
+### 步骤 2B:没有读图能力的 Agent(重要:不要尝试读图)
 
-```text
-docx -> OOXML-backed IR -> preflight -> inspect -> repair plan -> deterministic OOXML patch -> validate -> render preview
-```
+不具备图像理解能力时,**跳过所有 PNG,不要假装看过图**。改用纯文本路线,检查质量同样有保障——`visualFindings` 本身就来自 PDF 逐页文本和页面几何分析,不依赖看图:
 
-DOCX repair defaults:
-- do not rewrite thesis body text
-- do not silently rebuild numbering systems
-- do not delete images, tables, equations, notes, comments, or tracked changes
-- do not use Markdown as a fake universal intermediate format
+1. 读 `output/debug/visual_review_manifest.json`:`visualFindings`(空白页、标题落页尾、贴边、页数暴涨等)和 `unlocatedRegions`;
+2. 读 `output/debug/semantic_pages.json` 的 `pageSummaries` 核对每页首行文字与页面顺序;
+3. 需要修复时可先自动起草计划再人工复核:
+   `uv run python scripts/suggest_visual_refinements.py output/repaired.docx --manifest-json output/debug/visual_review_manifest.json --output visual_refinement_plan.json`
+4. 交付时把 `contact_sheet.png` 和 `critical_pages/` 的路径告诉用户,请用户自己翻看图片确认。
 
-## 4. Operating modes
+两条路线的后续步骤(3–5)完全相同。
 
-The unified interface should support three operating modes.
-
-### `audit-only`
-
-Use when:
-- the user wants inspection only
-- the document is high risk
-- the environment lacks confidence for automatic repair
-
-Allowed:
-- structured IR extraction
-- preflight checks
-- risk classification
-- audit reports
-- validation reports
-- render preview planning or rendering when available
-
-Not allowed:
-- deterministic repair writes to the thesis package
-- rebuild actions
-- confirmation-first rewrites
-
-### `conservative-repair`
-
-Default mode.
-
-Use when:
-- the document is template-aligned or thesis-like
-- requested changes stay inside the safe subset
-
-Allowed:
-- low-risk, high-confidence OOXML formatting repair
-- profile-based style normalization
-- low-risk header/footer text normalization under known template structure
-- low-risk image/table alignment normalization
-
-Not allowed by default:
-- body text rewriting
-- large-scale numbering reconstruction
-- bibliography mode conversion
-- cross-reference field rebuilding
-- front-matter regeneration
-
-### `rebuild`
-
-Use when:
-- the input is Markdown or TXT
-- the user explicitly authorizes reconstruction
-- the existing DOCX is severely polluted and rebuild is the safer path
-
-Allowed:
-- source DOCX build from text-first IR
-- template-based front-matter injection when configured
-- deterministic post-build OOXML repair
-
-Still not allowed by default:
-- AI-generated thesis wording replacement
-- silent destructive edits to protected Word structures
-
-## 5. Non-destructive principles
-
-Default rules:
-- do not rewrite thesis body text
-- do not automatically delete images
-- do not automatically delete tables
-- do not automatically delete equations
-- do not automatically delete footnotes, endnotes, comments, or tracked changes
-- do not silently reorder bibliography entries
-- do not silently rewrite in-text citations
-- do not silently rewrite heading wording
-- do not silently rewrite figure or table caption wording
-- require explicit confirmation for all high-risk modifications
-
-If any workflow must edit body text, the change must:
-- appear in `confirmationRequests`
-- be approved first
-- be logged line-by-line in the execution report
-
-## 6. Document risk classification
-
-Preflight must classify each source document.
-
-### Class A: `template-aligned`
-
-Characteristics:
-- close to the school template
-- style drift exists but structure is stable
-
-Default handling:
-- allow `conservative-repair`
-- auto-apply most low-risk safe-subset actions
-
-### Class B: `thesis-like-generic`
-
-Characteristics:
-- looks like a thesis but is not strongly aligned with the school template
-- body, headings, captions, and page settings are recognizable
-
-Default handling:
-- allow `conservative-repair` only for generic low-risk items
-- treat front matter, numbering system, headers/footers, and template-specific regions cautiously
-
-### Class C: `high-risk-polluted`
-
-Characteristics may include:
-- repeated WPS saves or broken OOXML structure
-- many floating images or text boxes
-- mixed automatic and manual numbering pollution
-- many sections with complex header/footer inheritance
-- heavy OLE / SmartArt / embedded Excel usage
-- bibliography and in-text citation mismatch
-- missing or mixed style systems
-
-Default handling:
-- recommend `audit-only`
-- block high-risk auto repair
-- require explicit rebuild or confirmation-first escalation
-
-Preflight report contract should include:
-
-```json
-{
-  "documentRiskClass": "A|B|C",
-  "riskReasons": [],
-  "recommendedMode": "audit-only|conservative-repair|rebuild",
-  "blockedAutoRepairs": []
-}
-```
-
-## 7. Profile system
-
-School-specific rules belong in profiles, not scattered hard-coded assumptions.
-
-Planned structure:
-
-```text
-profiles/
-├─ zafu_2022/
-│  ├─ template.docx
-│  ├─ rules.yaml
-│  ├─ style_map.yaml
-│  ├─ front_matter_policy.yaml
-│  ├─ validators.yaml
-│  └─ profile.md
-└─ generic_cn_bachelor/
-   ├─ rules.yaml
-   ├─ style_map.yaml
-   └─ profile.md
-```
-
-Current default profile:
-- [profiles/zafu_2022/profile.md](profiles/zafu_2022/profile.md)
-
-Profile responsibilities:
-- template document binding
-- style IDs and style-name mapping
-- page geometry and section defaults
-- heading/body/caption/reference expectations
-- front-matter policy
-- validators and auto-repair blocks
-
-## 8. Template fingerprint
-
-Template matching should be explicit instead of guessed informally.
-
-Fingerprint inputs should include:
-- `styles.xml` style IDs and style names
-- numbering definitions
-- sections and page geometry
-- header/footer bindings
-- theme fonts
-- `docDefaults`
-- front-matter page count
-- TOC field position
-- known paragraph signatures
-
-Preflight / audit should expose:
-
-```json
-{
-  "templateSimilarity": 0.82,
-  "templateFingerprintMatched": true,
-  "styleDrift": [],
-  "numberingDrift": [],
-  "sectionDrift": []
-}
-```
-
-This supports the A/B/C risk decision.
-
-## 9. Unified ThesisIR contract
-
-This skill does not treat `python-docx` as the formatting truth layer.
-
-Word truth comes from OOXML parts such as:
-- `word/document.xml`
-- `word/styles.xml`
-- `word/numbering.xml`
-- `word/theme/theme1.xml`
-- `word/settings.xml`
-- `word/fontTable.xml`
-- `word/header*.xml`
-- `word/footer*.xml`
-- when needed: footnotes, endnotes, comments, relationships, and other package parts
-
-IR expectations:
-- `.md`, `.txt`, and `.docx` converge into `paper-formatter.thesis-ir` v2
-- `semanticBlocks` is the single ordered semantic stream for downstream code
-- source adapters remain different: DOCX retains OOXML evidence and native asset
-  anchors, Markdown retains external asset/table syntax, and TXT retains line evidence
-- source evidence differences must be expressed as capabilities and anchors, not
-  as competing semantic models
-- compatibility views may remain during migration, but new code must prefer
-  `semanticBlocks`
-
-Detailed reference:
-- [references/structured_ir_contract.md](references/structured_ir_contract.md)
-
-## 10. AI planning boundaries
-
-Role split:
-
-```text
-AI role = block recognition + repair planning
-Program role = deterministic OOXML modification
-```
-
-AI may:
-- classify likely paragraph roles
-- infer likely heading levels
-- identify candidate repair actions
-- assign confidence and risk labels
-- send ambiguous cases to manual review
-
-AI may not:
-- directly rewrite OOXML or Word XML
-- silently rewrite thesis content
-- bypass risk or schema gates
-- force high-risk structural actions
-
-## 11. Repair plan schema gate
-
-Every repair plan must pass a schema gate before execution.
-
-Target shape:
+### 步骤 3:visual_refinement_plan.json 白名单动作
 
 ```json
 {
   "actions": [
-    {
-      "type": "apply_paragraph_style",
-      "target": "p_0120",
-      "role": "heading_2",
-      "style_id": "Heading2_ZAFU",
-      "confidence": 0.94,
-      "risk": "low",
-      "reason": "Text pattern and neighborhood context match level-2 heading"
-    },
-    {
-      "type": "manual_review",
-      "target": "p_0318",
-      "confidence": 0.58,
-      "risk": "medium",
-      "reason": "Could be heading_3 or numbered body list"
-    }
+    {"type": "set_keep_with_next", "target": {"paragraphIndex": 12, "textPrefix": "第三章"}, "reason": "一级标题落在页面末尾", "confidence": 0.92},
+    {"type": "set_table_header_repeat", "target": {"tableIndex": 2}, "headerRows": 1, "reason": "表头跨页不重复"}
   ]
 }
 ```
 
-Execution gate checks:
-- action type is in the whitelist
-- target exists in the audit / IR
-- confidence meets the minimum threshold
-- risk level is allowed by the active mode
-- action belongs to the safe subset
-- action does not modify thesis wording unless explicitly confirmed
-- confirmation-first actions remain blocked without user approval
+可用动作:`set_keep_with_next` / `set_keep_lines` / `set_page_break_before` / `clear_page_break_before` / `remove_empty_paragraph` / `remove_duplicate_page_break` / `set_widow_control` / `set_spacing`(beforePt/afterPt) / `center_paragraph` / `scale_image_to_width`(maxWidthCm) / `set_table_header_repeat`(headerRows) / `set_table_rows_no_split` / `center_table`。
 
-Failing actions must:
-- not execute
-- move to `manualReview` or `confirmationRequests`
+段落目标锚点规则:
+- 首选 `paragraphIndex`(document.xml 中第 N 个 `w:p`,0 起)+ `textPrefix` 双重校验;DOCX 源的 `paragraphIndex` 可直接取 `thesis_ir.json` semanticBlocks 里的 `docxParagraphIndex` 字段;
+- `blockId`(block-NNNNN)是 IR 序号不是段落序号,单独使用会被拒绝执行——必须同时给 `textPrefix`;
+- 不匹配的动作自动跳过并记录,绝不盲改。执行器:`scripts/apply_visual_refinements.py`。
 
-Current implementation notes:
-- existing plans still expose `paragraphActions`, `numberingActions`, `manualReview`, and related fields
-- future dispatchers should normalize these into the gated `actions[]` view before execution
+## 语义覆盖(识别错误时)
 
-Detailed reference:
-- [references/plan_schema.md](references/plan_schema.md)
+自动识别把标题当正文、把关键词当标题时,不要改正文——写 `semantic_overrides.json` 重新标注语义角色:
 
-## 12. Writer backends
-
-Python remains the primary controller.
-
-Planned abstraction:
-
-```text
-writer_backends/
-├─ python_lxml_writer
-├─ dotnet_openxml_validator
-├─ dotnet_openxml_writer_optional
-├─ libreoffice_renderer
-└─ word_com_renderer_optional
+```json
+{"overrides": [
+  {"blockId": "block-00142", "role": "heading_2", "headingLevel": 2, "reason": "无样式的二级标题"},
+  {"blockId": "block-00361", "role": "figure_caption", "reason": "位于图片之后且以图3-2开头"}
+]}
 ```
 
-Python responsibilities:
-- orchestration
-- OOXML parsing and IR extraction
-- YAML/profile rules
-- AI planning
-- low-risk OOXML patching
-- report generation
+`blockId` 来自 `output/debug/thesis_ir.json` 的 `semanticBlocks`。角色支持 `heading_1..6`、`body`、`figure_caption`、`table_caption`、`equation`、`keywords`、`references_heading`、`reference_entry`、`acknowledgements_*`、`appendix_*`、`template_example`(忽略模板示例段)。无效 blockId 只报告不失败。运行时加 `--semantic-overrides semantic_overrides.json`。
 
-.NET Open XML SDK responsibilities, when introduced:
-- optional schema validation
-- package/relationship checks
-- optional high-risk part edits
-- optional complex numbering, section, header/footer, field, or bookmark repair
+## 统一命令与专家参数
 
-Open XML SDK is **not** an OOXML replacement. It is an optional safer backend for selected operations.
-
-## 13. Validation layers
-
-Validation must be layered.
-
-### Structural validation
-
-Check:
-- DOCX package integrity
-- relationships and part references
-- missing media
-- relationship target normalization for `word/document.xml.rels`
-- image relationship validity after template/source merge
-- header/footer parts
-- numbering/style part presence
-- optional OpenXML schema validation
-
-### Rule validation
-
-Check:
-- margins and page settings
-- body/heading/caption/reference formatting
-- run-level direct formatting that conflicts with the resolved paragraph style
-- heading hierarchy
-- caption conventions
-- table alignment
-- image width vs printable region
-- bibliography indent behavior
-- header/footer template expectations
-
-### Render validation
-
-Check, when environment allows:
-- DOCX to PDF conversion succeeds
-- page count is available
-- key pages can be exported as preview images
-- cover, TOC, abstract, first body page, and references pages are easy to review manually
-
-## 14. Render validation
-
-Render validation is part of the pipeline, not a future afterthought.
-
-Preferred outputs:
-- `repaired.pdf`
-- `before_after_page_preview/`
-- `render_validation_report.json`
-
-Recommended first-stage behavior:
-- verify that the repaired DOCX can render to PDF
-- record page count
-- export a small set of review pages
-- flag pages for human review instead of pretending full visual QA is solved
-
-Backends:
-- LibreOffice headless preferred for generic environments
-- Word COM optional on Windows when available
-
-## 15. Automatic vs manual boundaries
-
-### Safe subset: default low-risk automatic repairs
-
-- page size and page margins
-- body font, size, line spacing, paragraph spacing, and first-line indent
-- high-confidence heading style assignment
-- high-confidence figure/table caption style assignment
-- normal table centering
-- table cell horizontal and vertical centering
-- research-style table normalization with strict three-line defaults: top rule, one header separator, and bottom rule; repeated grouped-header dividers are opt-in
-- default equation normalization for identifiable LaTeX/plain-text formulas into Word math objects via MathML/OMML conversion
-- inline image down-scaling when it exceeds the text area
-- centering the paragraph containing an inline image
-- known-template header text replacement
-- known-template section-role geometry repair for cover, TOC/abstract, and body regions
-- known-template page-number format repair such as TOC/abstract upper-Roman numbering and body-page Arabic restart
-- bibliography paragraph indent repair
-- preserving or inserting a TOC field without forcing page-number refresh
-
-TOC ownership rule:
-- the pipeline must have a single TOC owner for each route
-- Markdown / TXT rebuild route: the source-docx builder may insert the TOC once in the front matter; downstream OOXML repair may only preserve, detect, reposition, or restyle it
-- DOCX repair route: OOXML repair may preserve or insert a TOC only when the source truly lacks one
-- no pipeline stage may "retry" TOC insertion later in the body or at end-of-document as a fallback
-
-### Default manual-review or confirmation-first items
-
-- floating image to inline conversion
-- text boxes, SmartArt, OLE, embedded Excel
-- OMML equation structure or equation-number rebuild
-- full numbering-system rebuild
-- mixed manual and automatic numbering normalization at large scale
-- bibliography citation-mode conversion
-- in-text citation matching and reordering
-- cross-reference conversion into Word fields or bookmarks
-- front-matter rebuild
-- complex multi-section header/footer inheritance repair
-- aggressive WPS-pollution recovery
-
-Every repair action must be checked against the safe subset before execution.
-
-## 16. Critical OOXML guardrails
-
-These guardrails are mandatory for template-based repair and high-risk patch chains.
-
-- treat template front-matter media as protected assets; source `word/media/*` parts must not blindly overwrite them
-- insert template-derived cover and integrity pages verbatim; never infer or
-  populate their thesis title or personal fields during ordinary formatting,
-  and never restyle or rewrite text inside this immutable prefix
-- never reuse an internal image relationship by filename or normalized target path alone; only reuse when the target part path and binary content are both identical
-- resolve targets from `word/_rels/document.xml.rels` relative to `word/document.xml`, not relative to the `.rels` file path
-- TOC insertion must be single-owner and idempotent across the whole pipeline; later stages may not insert an additional TOC when one already exists anywhere in the document body
-- after any repair pass that preserves existing runs, normalize run-level font and size against the resolved paragraph style so stale direct formatting cannot override the target style in Word
-- for body paragraphs that simulate first-line indent with typed spaces or full-width spaces, strip the manual leading whitespace before applying true first-line indent
-- renaming template cover images is not a root fix; it only reduces collision probability and must not replace relationship-aware merge logic
-- role recognition for abstract, keywords, references, acknowledgements, and appendix headings must tolerate common suffix annotations such as `（示例）`, `（非完整）`, and similar bracketed notes
-- body-style fallback must explicitly cover mixed prose-plus-math paragraphs so inline or adjacent equations do not prevent normal body font and line-spacing normalization
-
-Detailed failure modes and repair rules:
-- [references/ooxml_pitfalls.md](references/ooxml_pitfalls.md)
-
-## 17. Recommended workflows
-
-### Unified dispatcher
-
-Future primary entrypoint:
-
-```powershell
-uv run python scripts\thesis_format.py input.docx --profile zafu_2022 --mode conservative-repair --output-dir output
+```bash
+uv run python scripts/thesis_format.py <输入文件> --profile zafu_2022 --output-dir output \
+  [--semantic-overrides overrides.json] [--visual-refinement-plan plan.json] \
+  [--mode audit-only|conservative-repair|rebuild] [--compliance default|strict-school] [--dry-run]
 ```
 
-Dispatcher responsibilities:
-- detect source type
-- load the active profile
-- choose the pipeline
-- run preflight first
-- honor the selected mode
-- stop at audit when risk classification blocks repair
+- Markdown/TXT 输入自动走重建路线(LaTeX 公式 `$...$` 转 Word 原生公式)。
+- 风险等级 C 的 DOCX 也会尽量交付(策略层自动在 preserve_first / template_overlay / hybrid_rebuild 中选择);`audit-only` 仅当用户明确要求或文件无法解析时使用。
+- 缺少 LibreOffice/Word/WPS 时跳过 PDF 渲染,DOCX 照常生成;缺 Poppler(pdftoppm)时跳过页面截图。
 
-### Existing script workflow
+## 降级路径
 
-DOCX input:
+| 情况 | 行为 |
+|---|---|
+| 无 PDF 渲染后端 | 生成 DOCX + 报告,提示用户自行打开检查 |
+| DOCX 包损坏 / document.xml 无法解析 | 仅输出审计报告并如实告知 |
+| 部分对象无法自动处理(SmartArt、OLE、复杂浮动图) | 保留原样 + 写入人工检查清单 |
+| 分节 / 页码修复失败 | 仍交付文档并在报告中标记 |
 
-```powershell
-uv run python scripts\preflight_semantic_normalization.py input.docx --template-docx "浙江农林大学毕业论文模板参考.docx" --rules-yaml references\zafu_2022_rules.yaml --output preflight_report.json
-uv run python scripts\inspect_docx.py input.docx --template-docx "浙江农林大学毕业论文模板参考.docx" --rules-yaml references\zafu_2022_rules.yaml --output audit.json
-uv run python scripts\plan_docx_repairs.py input.docx --template-docx "浙江农林大学毕业论文模板参考.docx" --rules-yaml references\zafu_2022_rules.yaml --output repair_plan.json
-uv run python scripts\apply_ooxml_fixes.py input.docx repaired.docx --plan-json repair_plan.json --template-docx "浙江农林大学毕业论文模板参考.docx" --rules-yaml references\zafu_2022_rules.yaml --report-json repair_execution.json
-uv run python scripts\validate_docx.py repaired.docx --before-docx input.docx --template-docx "浙江农林大学毕业论文模板参考.docx" --rules-yaml references\zafu_2022_rules.yaml --plan-json repair_plan.json --output validation_report.json
-```
+## References 导航(按需阅读,不要默认全读)
 
-Markdown / TXT input:
-
-```powershell
-uv run python scripts\preflight_semantic_normalization.py thesis.md --rules-yaml references\zafu_2022_rules.yaml --output source_preflight_report.json
-uv run python scripts\build_docx_from_markdown.py thesis.md --template-docx assets\zafu_front_matter_template.docx --rules-yaml references\zafu_2022_rules.yaml --output-dir output --keep-source-docx
-```
-
-## 18. Scripts
-
-Current scripts:
-- [scripts/thesis_format.py](scripts/thesis_format.py)
-  Unified dispatcher skeleton for `audit-only`, `conservative-repair`, and `rebuild`.
-- [scripts/extract_structured_ir.py](scripts/extract_structured_ir.py)
-  Source-aware IR extraction.
-- [scripts/preflight_semantic_normalization.py](scripts/preflight_semantic_normalization.py)
-  Semantic preflight and confirmation-first checks.
-- [scripts/extract_template_baseline.py](scripts/extract_template_baseline.py)
-  Template baseline extraction.
-- [scripts/inspect_docx.py](scripts/inspect_docx.py)
-  Deep OOXML audit.
-- [scripts/plan_docx_repairs.py](scripts/plan_docx_repairs.py)
-  Repair-plan builder; future dispatchers should treat it as the producer of gated action candidates.
-- [scripts/apply_ooxml_fixes.py](scripts/apply_ooxml_fixes.py)
-  Deterministic OOXML writer for allowed actions.
-- [scripts/validate_docx.py](scripts/validate_docx.py)
-  Structural and rule validation; render validation is the next expansion point.
-- [scripts/run_regression_fixtures.py](scripts/run_regression_fixtures.py)
-  Fixture regression runner scaffold.
-
-Shared engine:
-- [scripts/docx_ooxml.py](scripts/docx_ooxml.py)
-
-## 19. Reports
-
-Expected report families:
-- `structured_ir.json`
-- `source_preflight_report.json`
-- `preflight_report.json`
-- `template_baseline.json`
-- `audit_report.json`
-- `repair_plan.json`
-- `repair_execution.json`
-- `validation_report.json`
-- `render_validation_report.json`
-
-Key report expectations:
-- risk classification appears in preflight
-- template fingerprint appears in preflight or audit
-- repair gating decisions appear in the plan
-- confirmation-first actions appear in `confirmationRequests`
-- unresolved ambiguity appears in `manualReview`
-
-## 20. Extension points
-
-Planned extensions:
-- stronger template fingerprinting
-- richer safe-subset validation
-- LibreOffice render validation
-- optional Word COM render validation
-- optional Open XML SDK validator and writer backends
-- complex numbering rebuild under explicit confirmation
-- field/bookmark repair
-- OMML-aware equation repair
-- bibliography matching and citation reconciliation
-- visual QA
-
-## 21. Regression fixtures
-
-Planned fixture layout:
-
-```text
-tests/fixtures/
-├─ normal_template_docx/
-├─ manual_numbering_docx/
-├─ messy_styles_docx/
-├─ many_images_docx/
-├─ many_tables_docx/
-├─ floating_images_docx/
-├─ wps_saved_docx/
-├─ broken_toc_docx/
-├─ numeric_references_docx/
-├─ markdown_source/
-└─ severe_pollution_docx/
-```
-
-Each fixture should eventually carry:
-- an input document
-- expected risk class
-- expected auto-repairable items
-- expected manual-review items
-- expected validation summary
-
-Mandatory regression themes for this skill:
-- template front matter and body both contain `word/media/image1.*` style names with different bytes; the repaired DOCX must preserve both sets of images without replacement
-- body image relationships imported from source must resolve to real package parts; validators must catch broken targets that would cause `无法显示图片`
-- source body paragraphs with direct run font size such as `12pt` must still end up at the profile body size after repair
-- source body paragraphs using typed spaces for indent must be normalized to true first-line indent without doubled indentation
-- patching a previously repaired DOCX must not reintroduce stale run-level body formatting from the earlier output
-- Markdown / TXT rebuild must not insert a second TOC title or TOC field later in the document when front matter already contains one
-- reference-section detection must recognize heading variants such as `参考文献（示例，非完整）` and split numbered entries into separate bibliography paragraphs
-- mixed prose-plus-math body paragraphs under level-2 or level-3 headings must still resolve to the profile body style instead of staying at `Normal`
-- Markdown horizontal rules such as `---` used as visual separators must not be converted into page breaks
-
-Planned regression entrypoint:
-
-```powershell
-uv run python scripts\run_regression_fixtures.py --profile zafu_2022 --output-dir test_output
-```
-
-## References
-
-- [references/repair_architecture.md](references/repair_architecture.md)
-- [references/preflight_normalization_workflow.md](references/preflight_normalization_workflow.md)
-- [references/structured_ir_contract.md](references/structured_ir_contract.md)
-- [references/plan_schema.md](references/plan_schema.md)
-- [references/ooxml_audit_guide.md](references/ooxml_audit_guide.md)
-- [references/ooxml_pitfalls.md](references/ooxml_pitfalls.md)
-- [references/numbering_systems.md](references/numbering_systems.md)
-- [references/template_rule_coordination.md](references/template_rule_coordination.md)
-- [references/local_codex_extension_points.md](references/local_codex_extension_points.md)
+- `references/thesis_ir_contract.md` — ThesisIR 契约与 semanticBlocks 结构
+- `references/plan_schema.md` — repair plan schema
+- `references/ooxml_pitfalls.md` — OOXML 修改陷阱(改 XML 前必读)
+- `references/ooxml_audit_guide.md` — 审计字段说明
+- `references/numbering_systems.md` — 中文论文编号体系
+- `references/template_rule_coordination.md` — 模板与规则合并
+- `references/hybrid_rebuild_contract.md` — 混合重建约束
+- `references/architecture_deep_dive.md` — 完整架构说明(原 SKILL.md)
+- `references/zafu_2022_rules.yaml` — ZAFU 规范的机器可读规则

@@ -51,6 +51,7 @@ styles:
     line_spacing_pt: 22
   body_text:
     type: paragraph
+    widow_control: true
     east_asia_font: 宋体
     ascii_font: Times New Roman
     size_pt: 10.5
@@ -60,6 +61,8 @@ styles:
     spacing_after_pt: 0
   heading1:
     type: paragraph
+    keep_with_next: true
+    keep_lines: true
     east_asia_font: 楷体
     ascii_font: Times New Roman
     size_pt: 14
@@ -72,6 +75,8 @@ styles:
     spacing_after_lines: 100
   heading2:
     type: paragraph
+    keep_with_next: true
+    keep_lines: true
     east_asia_font: 黑体
     ascii_font: Times New Roman
     size_pt: 12
@@ -83,6 +88,8 @@ styles:
     spacing_after_lines: 50
   heading3:
     type: paragraph
+    keep_with_next: true
+    keep_lines: true
     east_asia_font: 黑体
     ascii_font: Times New Roman
     size_pt: 10.5
