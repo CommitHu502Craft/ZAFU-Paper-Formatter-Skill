@@ -1,115 +1,166 @@
-<h1 align="center">浙江农林大学本科毕业论文智能排版 Skill</h1>
+# 🎓 本科毕业论文排版助手（Word / LaTeX 双路径）
 
-<h3 align="center">ZAFU Paper Formatter Skill</h3>
+**论文写完了，别再被格式困住。**
 
-<p align="center">
-  <strong>🎓 把论文文件交给 AI Agent,Skill 会自动排版、渲染检查并输出新的 Word 和 PDF,原文件不会被覆盖。</strong>
-</p>
+字号不统一、标题层级混乱、图表格式难调整……毕业论文最后的排版，往往比想象中更费时间。
 
-这是一个面向**浙江农林大学本科生**的毕业论文智能排版 Skill。它可以由 Claude Code、Codex、Cursor 等能够访问本地文件和运行命令的 AI Agent 使用。你只需要提供论文文件(Word `.docx`、Markdown `.md` 或纯文本 `.txt`),Agent 会:
+这个项目希望帮你省下这些重复劳动：把已有的论文交给 AI 助手，辅助整理格式，生成新的排版文件，并告诉你还有哪些地方需要留意。目前默认适配浙江农林大学（ZAFU）本科毕业论文规则；其他学校需要提供并核对相应规则，不能直接套用默认配置。
 
-1. 自动排版:标题层级、目录、页码分节、三线表、图题表题、公式、摘要关键词、参考文献、中英文字体字号;
-2. 渲染 PDF 并生成全文缩略图和关键页预览,像人一样"翻一遍"检查页面效果;
-3. 发现明显问题时自动做一次视觉修复(如标题落在页尾、表头跨页不重复);
-4. 输出排版后的 Word、PDF 和一份看得懂的中文检查报告。
+✨ **支持 Word，也提供 LaTeX 排版方式。**
+📂 **原稿保留，结果另存，不把文件越改越乱。**
+📝 **专注排版，不让 AI 擅自润色、补写或重写论文。**
 
-不会 Python、没用过命令行都没关系——把文件路径和下面的提示词发给 Agent 即可。
+> 目前为预览版，欢迎试用和反馈。这是独立社区项目，不是学校官方工具；交稿仍以所在学院当年的要求为准。
 
-## 🚀 安装
+## 🙋 适合谁使用？
 
-打开一个能访问本地文件的 AI Agent,发送:
+- **论文已经写完，正在准备交稿的同学**：希望减少逐段调整字体、标题和图表的时间。
+- **从多个文件拼成论文的同学**：不同章节格式不一致，想统一整理。
+- **习惯用文字稿写作的同学**：希望把 Markdown 或 TXT 稿件整理成 Word，或使用 LaTeX 排版。
+- **想保留不同交付版本的同学**：从同一份文字稿分别生成 Word 和 LaTeX 版本。
+
+## ✨ 能帮你做什么？
+
+### 📄 整理论文格式
+
+辅助统一可识别的正文、标题、摘要、关键词、图表题注和参考文献样式，处理常见编号、页码及局部排版问题。
+
+默认 ZAFU Word 配置将参考文献统一为宋体五号，并提示可能不合适的地方；**不会替你核实文献真实性，也不会自动把正文文献引用改成另一套形式。** 可显式指定西文字体为 Times New Roman，封面保护及学校中文字体规则仍保留。
+
+LaTeX 可从 Markdown/TXT 生成独立工程与 PDF，支持图表、常用公式及双语摘要。显式提供 `.bib` 文件和 `[@key]` 引用时，可使用 GB/T 7714-2015 著者—年份格式；不会从不完整的参考文献中猜测书目信息。
+
+### 🧭 把需要留意的问题告诉你
+
+遇到识别不清、复杂分节或无法处理的情况，会留下提示，方便你和 AI 助手继续检查。大范围重建、替换前置部分等操作需要你的许可。
+
+默认做基础格式检查，不逐页截图，也不进行完整视觉审阅，让日常排版更轻量。需要进一步看页面效果时，可以单独提出。
+
+### 📁 帮你把结果收拾整齐
+
+每次排版单独保存，原稿不覆盖。排版文件、检查说明和过程文件分开存放，方便找结果、比较版本，也方便继续修改。
+
+## 🚀 怎么开始？
+
+这是一个 **Skill**，可以理解为给 AI 助手使用的一套论文排版工具，**不是上传文件就能在线转换的网站**。
+
+你需要一个能够读取电脑文件、执行本地工具的 AI 助手。下载或安装本项目后，让助手读取项目里的使用说明；首次使用可能需要配置运行环境，可以让助手引导完成。
+
+然后，告诉它论文在哪、你想要什么结果。例如：
 
 ```text
-请从下面的 GitHub 地址安装 ZAFU Paper Formatter Skill:
-https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill
+请读取这个项目的 SKILL.md，帮我排版这份毕业论文。
+文件在 D:\毕业论文\我的论文.docx。
 
-请自行检查运行环境并完成依赖安装。优先使用 uv 管理 Python 环境,不要修改我的论文文件。安装完成后运行 Skill 自带的健康检查,并告诉我安装位置和检查结果。
+按浙江农林大学的规则整理，输出 Word 文件。
+不要润色、补写或重写论文，也不要覆盖我的原稿。
+如果需要大范围调整结构，请先问我。
+完成后告诉我结果保存在哪里，还有哪些地方需要检查。
 ```
 
-如果本机装有 LibreOffice、Microsoft Word 或 WPS,会自动用于 PDF 渲染检查;都没有也不影响生成 Word 文件。
+💡 平时使用 Word 的同学，直接提供 `.docx` 文件即可，不必为了排版先学习 LaTeX。
 
-## 💬 使用(推荐提示词)
+具体运行方法供 AI 助手或需要手动操作的用户查阅：[使用说明](SKILL.md)。
 
-把论文文件的完整路径和下面这段话发给已安装 Skill 的 Agent:
+### 本地环境与命令
 
-```text
-请使用 ZAFU Paper Formatter Skill 排版以下本科毕业论文:
-D:\毕业论文\我的论文.docx
+需要 **Python 3.11 或更高版本**和 **uv**。在仓库根目录执行：
 
-要求:
-1. 按浙江农林大学本科毕业论文规范执行默认自动排版;
-2. 排版完成后检查页面效果:如果你能读取图片,查看全文缩略图(contact sheet)
-   和关键页面预览;如果你不能读取图片,不要读图,改读
-   output/debug/visual_review_manifest.json 里的文字检查结果,
-   并把图片路径告诉我由我自己翻看;
-3. 发现明显排版问题时,生成视觉修复计划并执行一次二次修复;
-4. 输出最终的 Word、PDF 和检查报告,并把报告里的人工检查清单转述给我;
-5. 不要改写论文正文的任何文字;
-6. 不要覆盖我的原文件;
-7. 不要因为少量警告就停止交付,把剩余风险写进报告即可。
+```powershell
+uv sync --locked
+uv run --no-sync python scripts/thesis_format.py --help
+uv run --no-sync python scripts/thesis_format.py "D:/毕业论文/论文.docx"
+uv run --no-sync python scripts/thesis_format.py "D:/毕业论文/论文.md" --backend latex
+uv run --no-sync python scripts/thesis_format.py "D:/毕业论文/论文.md" --backend both
 ```
 
-Markdown / TXT 初稿同样适用,只需替换文件路径。
+`pyproject.toml` 与 `uv.lock` 是推荐的依赖入口；`requirements.txt` 供其他环境使用，但不是完全锁定的替代方案。从别的目录调用时，使用 `uv run --project "Skill目录" --no-sync python "Skill目录/scripts/thesis_format.py" "论文路径"`，避免误用另一个项目的 Python 环境。
 
-### 输出在哪里
+按所需功能配置额外工具：
 
-排版完成后,`output/final/` 里就是你需要的全部文件:
-
-| 文件 | 说明 |
+| 功能 | 额外条件 |
 |---|---|
-| `repaired.docx` | 排版完成、可继续编辑的 Word |
-| `repaired.pdf` | 渲染预览 |
-| `review_report.html` | 中文检查报告(双击用浏览器打开) |
-| `contact_sheet.png` | 全文页面缩略图 |
-| `critical_pages/` | 封面、目录、摘要、正文首页等关键页大图 |
+| Word 结构检查、DOCX 修复或生成 | 不需要启动 Word，也不需要 TeX 编译器 |
+| Word 导出 PDF、更新目录与分页核验 | 可用的 Microsoft Word（Windows）或 LibreOffice 转换环境；以实际报告为准 |
+| LaTeX 编译 PDF | PATH 上的 XeLaTeX 或 Tectonic，以及模板所需字体和宏包 |
+| 页面预览 | 对应的 PDF 工具，如 Poppler；需显式要求预览 |
 
-## ⚠️ 使用前注意
+首次 ZAFU LaTeX 构建需联网取得固定版本模板；Tectonic 也可能下载编译资源。学校适配优先使用宋体、黑体、楷体、仿宋与 Times New Roman，缺失字体或宏包需依据编译报告处理。工具不自动安装大型 TeX 环境或修改系统 PATH。只需要工程时使用 `--no-compile`；无编译器时也会明确报告仅交付源码，而非已生成 PDF。
 
-- 原论文不会被覆盖,但排版前请自行备份论文和图片附件;
-- 封面与诚信页中的姓名、学号等个人信息需要你自己核对填写,工具不会猜;
-- 拿到 Word 后请在 Word/WPS 中右键目录 → "更新整个目录" 刷新页码;
-- 浮动图片、文本框、SmartArt、嵌入式 Excel 等复杂对象会保留原样并列入人工检查清单;
-- 最终提交前务必按 `review_report.html` 里的清单人工检查一遍。
+常用选项：`--export-pdf` 请求 Word PDF；`--latin-font "Times New Roman"` 指定 Word 西文字体；`--output-dir "输出目录"` 指定结果基目录。`--check layout` 增加 PDF 布局分析，`--check visual` 生成预览，但都不等于已经完成人工或 AI 逐页审阅。
 
-## 🧑‍💻 开发者与高级用户
+## 📚 Word 和 LaTeX，怎么选？
 
-手动安装:
+| 你的情况 | 建议选择 |
+|---|---|
+| 已经用 Word 写好论文 | 继续使用 Word，整理后生成一个新文件 |
+| 用 Markdown 或 TXT 写作，最终需要 Word | 提供文字稿，生成 Word 文件 |
+| 想用 LaTeX 排版 | 提供 Markdown 或 TXT 稿件，生成可继续编辑的 LaTeX 工程；环境就绪后生成 PDF |
+| 想同时保留两种版本 | 提供 Markdown 或 TXT 稿件，分别生成 Word 和 LaTeX 版本 |
+
+两种排版方式的分页和外观可能不同。目前不提供任意 Word 文件直接无损转换为 LaTeX 的功能。
+
+LaTeX 学校适配目前为草稿级，不代表学校格式认证。封面和诚信页不自动填写；可通过显式元数据插入已确认的原始前置页 PDF，或选择模板宏生成前置页。配置见 [LaTeX 学校适配说明](references/zafu_latex_adapter.md)。
+
+## 📍 排版后的文件在哪里？
+
+默认保存在原论文旁边的 **`thesis-output` 文件夹**中，每次排版都有独立的结果目录。
+
+- **`deliverables`**：排版成品，拿结果时看这里。
+- **`reports`**：检查说明，查看还有什么问题需要处理。
+- **`work`**：过程文件，普通使用时不用关心。
+
+也可以直接告诉 AI 助手：“请把排版结果保存到我指定的文件夹，并告诉我最终文件路径。”
+
+## 💬 几个你可能关心的问题
+
+**会改我的论文内容吗？**
+
+不做 AI 润色、补写或重写。排版过程中会进行摘要局部整理、标题编号、图表引用等格式处理。大范围结构操作需要你的许可。
+
+**格式很乱的 Word 也能用吗？**
+
+可以尝试，但不能保证所有内容都识别准确。越复杂的稿件，越需要检查结果；识别有误时，可以告诉助手哪个位置应当是正文、标题或题注，再进行纠正。
+
+**能直接拿去交稿吗？**
+
+建议先核对封面信息、目录、分页和学院要求。在 Word 中更新目录后再确认页码。工具完成排版，不代表已经通过学校的格式审查。
+
+**页眉会写什么？**
+
+Word 默认使用“浙江农林大学本科生毕业论文（设计）”。修复已有 DOCX 时，仅修改可识别正文/摘要节已有的非空页眉，不擅自为缺失页眉新增结构；从 Markdown/TXT 新建时，为明确的正文/摘要节补齐页眉。独立目录节不显示页眉。可选择论文题目或保留原页眉；复杂分节会提示检查。LaTeX 按其模板处理。
+
+## 🧰 项目结构与提交范围
+
+- `SKILL.md`、`agents/`：AI 助手的入口说明与展示信息。
+- `scripts/`：统一入口、公共语义处理、Word 与 LaTeX 后端。
+- `profiles/`、`references/`：学校规则和按需读取的技术说明。
+- `assets/`：有意保留的模板与本项目的 LaTeX 适配文件。
+- `tests/`：测试代码与固定样例，不是用户论文的存放位置。
+
+仓库保留源码、规则、锁文件及必要的模板/测试资源；不提交个人论文、排版成品、虚拟环境、缓存或外部模板下载目录。`.gitignore` 按生成目录忽略成品，不全局屏蔽 DOCX/PDF 等可能属于有效资源的格式。自定义输出到其他目录时，需自行补充忽略规则并检查 `git status`。
+
+本地检查入口（不修改测试期望）：
 
 ```powershell
-git clone https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill.git
-cd ZAFU-Paper-Formatter-Skill
-uv sync
+uv run --no-sync python scripts/verify_skill_health.py
+uv run --no-sync python -m unittest discover -s tests -p "test_*.py"
+git diff --check
 ```
 
-统一入口命令:
+健康检查仅核对配置与入口，测试通过也不替代实际页面核验。不要将含姓名、学号、批注、未公开研究内容的文件作为公开测试样例。
 
-```powershell
-uv run python scripts\thesis_format.py "D:\毕业论文\我的论文.docx" --profile zafu_2022 --output-dir output
-```
+## 🤝 模板来源与致谢
 
-可选参数:
+**本项目的 LaTeX 排版来自 [Stolorzs/ZafuTemplatePublic](https://github.com/Stolorzs/ZafuTemplatePublic)。** 感谢上游项目提供浙江农林大学 LaTeX 模板。本项目直接使用其原始文档类，并增加论文输入、前置页配置和结果整理等适配功能；不将上游模板描述为本项目原创。
 
-- `--semantic-overrides overrides.json` — 用稳定 blockId 覆盖语义识别结果(标题层级、图题、关键词等);
-- `--visual-refinement-plan plan.json` — 执行一次白名单视觉修复(keepNext、另起一页、表头重复、图片缩放等)并重新渲染;
-- `--mode audit-only|conservative-repair|rebuild`、`--compliance default|strict-school`、`--dry-run` — 专家参数。
+LaTeX 参考文献样式使用 [zepinglee/gbt7714-bibtex-style](https://github.com/zepinglee/gbt7714-bibtex-style)。
 
-健康检查与测试:
+本项目原创代码和文档采用 [Apache License 2.0](LICENSE)。学校模板和第三方资源有各自的授权边界；**外部 LaTeX 文档类与图片的再分发许可尚未确认，公开分享包含这些资源的生成文件前，请先核实许可。** 详细声明见 [NOTICE](NOTICE)。
 
-```powershell
-uv run python scripts\verify_skill_health.py
-uv run python -m unittest tests\test_unified_thesis_ir.py
-```
+## 🌱 一起让排版更省心
 
-技术细节(ThesisIR 契约、OOXML 陷阱、修复计划 schema、架构说明)见 `SKILL.md` 与 `references/` 目录。
+欢迎反馈格式问题、识别错误和学院规则变化。描述“哪一处、预期是什么、实际是什么”，会更方便定位问题。
 
-## 🧭 项目状态
+🔒 提交截图或样稿前，请先移除姓名、学号、联系方式、批注等个人信息和未公开内容。
 
-当前版本以"尽量一次交付可用结果"为目标:自动执行确定性的排版修复,渲染 PDF 做视觉复查,无法可靠处理的项目写入人工检查清单而不是中断流程。
-
-仓库中的 ZAFU profile 和模板相关资源用于论文排版研究及个人学术用途。进行更广泛的转载或再分发前,请确认学校模板的相关要求。
-
-## 📜 许可证
-
-本项目的源代码、Skill 指令、配置和原创文档采用 [Apache License 2.0](LICENSE)。
-
-浙江农林大学官方论文模板及其派生资源不属于 Apache-2.0 授权范围,其权利归相应权利人所有,详见 [NOTICE](NOTICE)。本项目是独立社区项目,不是浙江农林大学官方项目,也不代表学校的认可或维护。
+⭐ 如果这个项目帮你少折腾了一些格式，欢迎点个 Star，也欢迎分享给正在准备毕业论文的同学。

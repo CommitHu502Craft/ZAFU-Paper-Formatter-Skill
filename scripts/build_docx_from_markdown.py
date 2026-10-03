@@ -56,7 +56,7 @@ PLAIN_TEXT_HEADING_RE = re.compile(
 A4_WIDTH_CM = 21.0
 A4_HEIGHT_CM = 29.7
 EQUATION_NUMBER_RE = re.compile(r"(?P<number>[（(]\d+(?:[-.．]\d+)*[）)])$")
-NUMERIC_REFERENCE_LABEL_RE = re.compile(r"^\[\s*\d+\s*\]\s*")
+NUMERIC_REFERENCE_LABEL_RE = re.compile(r"^(?:\[\s*\d+\s*\]|\d{1,3}[.)、])\s*")
 
 
 def strip_markdown_emphasis(text: str) -> str:
@@ -257,7 +257,13 @@ def add_paragraph_block(document: Document, text: str, style: Optional[str], sta
 
 
 def add_reference_paragraph_block(document: Document, text: str, state: dict):
-    return add_paragraph_block(document, text, style=None, state=state)
+    paragraph = add_paragraph_block(document, text, style=None, state=state)
+    paragraph.paragraph_format.first_line_indent = Pt(0)
+    for run in paragraph.runs:
+        run.font.name = "宋体"
+        run.font.size = Pt(10.5)
+        run._element.get_or_add_rPr().get_or_add_rFonts().set(docx_qn("w:eastAsia"), "宋体")
+    return paragraph
 
 
 def add_body_paragraph_block(document: Document, text: str, state: dict):
@@ -599,10 +605,17 @@ def parse_front_abstract_block(lines: List[str]) -> Optional[dict]:
 
 
 def emit_front_abstract_block(document: Document, block: dict, state: dict) -> None:
+    # A generated TOC and abstracts need independent headers. This only runs
+    # for newly built documents, never for conservative DOCX repair.
+    if state.get("toc_inserted"):
+        abstract_section = document.add_section(WD_SECTION_START.NEW_PAGE)
+        force_section_a4(abstract_section)
+        set_section_page_number_format(abstract_section, start=None, fmt="upperRoman")
     if block.get("title_cn"):
         add_centered_title_block(document, block["title_cn"], state)
-    abstract_cn = add_paragraph_block(document, f"摘要：{block['abstract_cn']}", style=None, state=state)
-    add_toc_entry_field(abstract_cn, "摘  要", 1)
+    if block.get("abstract_cn"):
+        abstract_cn = add_paragraph_block(document, f"摘要：{block['abstract_cn']}", style=None, state=state)
+        add_toc_entry_field(abstract_cn, "摘  要", 1)
     if block.get("keywords_cn"):
         add_paragraph_block(document, f"关键词：{block['keywords_cn']}", style=None, state=state)
     if block.get("title_en"):
@@ -624,6 +637,10 @@ def emit_thesis_ir_text_block(document: Document, block: dict, state: dict) -> N
     kind = block.get("kind")
     text = normalize_inline_text(str(block.get("text") or ""))
     if not text:
+        return
+    # Markdown horizontal rules are separators, not thesis正文.  The IR route
+    # must discard them just like the direct Markdown parser does.
+    if text.strip() == "---":
         return
     if kind == "heading":
         level = int(block.get("level") or 1)
@@ -709,7 +726,7 @@ def build_plain_text_docx_from_thesis_ir(document: Document, thesis_ir: dict, ru
         "keywords_cn": front_matter.get("keywordsCn"),
         "keywords_en": front_matter.get("keywordsEn"),
     }
-    if front_block.get("abstract_cn"):
+    if front_block.get("abstract_cn") or front_block.get("abstract_en"):
         if not state.get("toc_inserted"):
             insert_toc_block(document, state)
         emit_front_abstract_block(document, front_block, state)
@@ -1148,6 +1165,7 @@ def main() -> None:
     parser.add_argument("--keep-source-docx", action="store_true", help="Keep the intermediate source DOCX")
     parser.add_argument("--convert-svg", action="store_true", help="Convert SVG images to PNG before building")
     parser.add_argument("--thesis-ir-json", help="Use an existing unified ThesisIR instead of regenerating it")
+    parser.add_argument("--build-only", action="store_true", help="Only generate the intermediate DOCX; the caller owns preflight, repair and validation")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -1224,10 +1242,14 @@ def main() -> None:
     ]
     if args.thesis_ir_json:
         preflight_command.extend(["--thesis-ir-json", args.thesis_ir_json])
-    subprocess.run(preflight_command, check=True)
+    if not args.build_only:
+        subprocess.run(preflight_command, check=True)
 
     source_docx = output_dir / "markdown_source.docx"
     build_source_docx_from_markdown(args.markdown, str(source_docx), rules, thesis_ir=thesis_ir)
+
+    if args.build_only:
+        return
 
     subprocess.run(
         [

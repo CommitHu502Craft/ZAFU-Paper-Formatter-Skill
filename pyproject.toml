@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Auditable thesis formatting for DOCX, Markdown, and plain-text sources."
 requires-python = ">=3.11"
 dependencies = [
+  "bibtexparser>=1.4.3,<2",
   "latex2mathml>=3.78.0",
   "lxml>=5.0.0",
   "pillow>=12.3.0",

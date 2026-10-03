@@ -870,7 +870,12 @@ def classify_paragraph_role(paragraph: Dict[str, Any]) -> Dict[str, Any]:
     effective_ppr = paragraph.get("effectiveParagraph") or {}
     effective_run = paragraph.get("effectiveRunSummary") or {}
     manual_numbering = paragraph.get("manualNumbering")
-    has_numpr = paragraph.get("numId") is not None
+    has_numpr = paragraph.get("numId") not in (None, 0, "0")
+
+    # Fields are structural objects even when their cached text is empty or
+    # their paragraph inherited a title style from a template.
+    if paragraph.get("hasTocField"):
+        return {"role": "toc_field", "confidence": 0.99, "signals": ["toc_field_code"]}
 
     if not text:
         return {"role": "blank", "confidence": 1.0, "signals": []}
@@ -892,8 +897,6 @@ def classify_paragraph_role(paragraph: Dict[str, Any]) -> Dict[str, Any]:
         return {"role": "title_cn", "confidence": 0.99, "signals": ["repaired_title_cn_style"]}
     if style_id == "zafu_title_en":
         return {"role": "title_en", "confidence": 0.99, "signals": ["repaired_title_en_style"]}
-    if paragraph.get("hasTocField"):
-        return {"role": "toc_field", "confidence": 0.99, "signals": ["toc_field_code"]}
     if text.replace(" ", "") == "目录":
         return {"role": "toc_heading", "confidence": 0.99, "signals": ["exact_heading"]}
     if text.startswith("[图形占位]"):
@@ -1142,7 +1145,7 @@ def analyze_numbering_tree(paragraphs: List[Dict[str, Any]]) -> Dict[str, Any]:
         role = (paragraph.get("role") or {}).get("role")
         confidence = (paragraph.get("role") or {}).get("confidence", 0.0)
         manual = paragraph.get("manualNumbering")
-        if manual and paragraph.get("numId") is not None:
+        if manual and paragraph.get("numId") not in (None, 0, "0"):
             mixed_manual_and_auto.append(
                 {
                     "paragraphIndex": paragraph["index"],
@@ -1200,7 +1203,7 @@ def analyze_numbering_tree(paragraphs: List[Dict[str, Any]]) -> Dict[str, Any]:
                 mismatch = True
         elif actual_prefix and expected_prefix and actual_prefix != expected_prefix:
             mismatch = True
-        if item.get("numId") is not None and actual_prefix:
+        if item.get("numId") not in (None, 0, "0") and actual_prefix:
             mismatch = True
             anomalies.append(
                 {
@@ -1279,7 +1282,7 @@ def analyze_numbering_tree(paragraphs: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def analyze_caption_layout(body_sequence: List[Dict[str, Any]]) -> Dict[str, Any]:
+def analyze_caption_layout(body_sequence: List[Dict[str, Any]], table_caption_position: str = "after_table") -> Dict[str, Any]:
     issues = []
     caption_items = []
     for index, item in enumerate(body_sequence):
@@ -1291,7 +1294,8 @@ def analyze_caption_layout(body_sequence: List[Dict[str, Any]]) -> Dict[str, Any
         caption_items.append({"paragraphIndex": item.get("paragraphIndex"), "role": role, "text": item.get("text", "")[:120]})
         previous = next((candidate for candidate in reversed(body_sequence[:index]) if candidate.get("kind") != "blank"), None)
         next_item = next((candidate for candidate in body_sequence[index + 1 :] if candidate.get("kind") != "blank"), None)
-        if role == "table_caption" and next_item and next_item.get("kind") == "table":
+        above_table = table_caption_position in {"above_table", "before_table"}
+        if role == "table_caption" and not above_table and next_item and next_item.get("kind") == "table":
             issues.append(
                 {
                     "kind": "caption_before_table",
@@ -1299,10 +1303,11 @@ def analyze_caption_layout(body_sequence: List[Dict[str, Any]]) -> Dict[str, Any
                     "text": item.get("text", "")[:120],
                 }
             )
-        if role == "table_caption" and not (previous and previous.get("kind") == "table"):
+        adjacent_table = next_item if above_table else previous
+        if role == "table_caption" and not (adjacent_table and adjacent_table.get("kind") == "table"):
             issues.append(
                 {
-                    "kind": "table_caption_not_after_table",
+                    "kind": "table_caption_not_before_table" if above_table else "table_caption_not_after_table",
                     "paragraphIndex": item.get("paragraphIndex"),
                     "text": item.get("text", "")[:120],
                 }
@@ -1796,7 +1801,7 @@ def parse_document(
         style_analysis = analyze_styles(styles)
         font_slot_analysis = analyze_font_slots(paragraphs)
         immutable_prefix = detect_immutable_prefix_region(paragraphs)
-        caption_layout = analyze_caption_layout(body_sequence)
+        caption_layout = analyze_caption_layout(body_sequence, (rules.get("tables") or {}).get("caption_position", "after_table"))
         front_matter_analysis = analyze_front_matter_structure(paragraphs)
         cross_reference_analysis = analyze_cross_reference_candidates(paragraphs, caption_layout.get("captions") or [])
 
@@ -2124,6 +2129,7 @@ def build_repair_plan(
     *,
     style_map_path: Optional[str] = None,
     front_matter_policy_path: Optional[str] = None,
+    allow_structural_rebuild: bool = False,
 ) -> Dict[str, Any]:
     paragraphs = audit.get("paragraphs") or []
     numbering_analysis = audit.get("numberingAnalysis") or {}
@@ -2135,7 +2141,7 @@ def build_repair_plan(
     template_prefix = (((audit.get("templateBaseline") or {}).get("preservationHints") or {}).get("immutablePrefix")) or None
     template_prefix_count = detect_template_prefix_count(audit.get("templateBaseline"))
     template_prefix_end = template_prefix_count or (template_prefix["endParagraphExclusive"] if template_prefix else 0)
-    preserve_template_prefix = bool(front_matter_policy_value(front_matter_policy, "preserve_cover_and_integrity_pages_from_template", True))
+    preserve_template_prefix = allow_structural_rebuild and bool(front_matter_policy_value(front_matter_policy, "preserve_cover_and_integrity_pages_from_template", True))
     source_prefix_drop_count = immutable_prefix["endParagraphExclusive"] if immutable_prefix else 0
     editable_start = 0 if (preserve_template_prefix and template_prefix_end > 0) else source_prefix_drop_count
     document_risk_class = audit.get("documentRiskClass") or infer_plan_document_risk_class(audit)
@@ -2221,7 +2227,7 @@ def build_repair_plan(
             style_mapping[str(paragraph["index"])] = style_targets["heading3"]
             paragraph_actions.append({"paragraphIndex": paragraph["index"], "action": "normalize_heading_style", "targetStyle": style_targets["heading3"]})
         elif role_name in {"body", "body_enumeration"} and paragraph["text"].strip():
-            if role_name == "body_enumeration" and (paragraph.get("manualNumbering") or {}).get("family") in {"humanities_cn", "humanities_chapter"}:
+            if not (rules.get("page") or {}).get("fresh_document") and role_name == "body_enumeration" and (paragraph.get("manualNumbering") or {}).get("family") in {"humanities_cn", "humanities_chapter"}:
                 level = (paragraph.get("manualNumbering") or {}).get("level") or 1
                 target_key = f"heading{min(max(level, 1), 3)}"
                 style_mapping[str(paragraph["index"])] = style_targets[target_key]
@@ -2363,6 +2369,11 @@ def build_repair_plan(
                 break
     if not header_text:
         header_text = ((audit.get("preservationHints") or {}).get("preferredHeaderText"))
+    header_mode = (rules.get("page") or {}).get("header_text_mode", "thesis_title_after_toc")
+    if header_mode == "fixed":
+        header_text = (rules.get("page") or {}).get("header_text")
+    elif header_mode == "preserve":
+        header_text = None
     blocked_auto_repairs = list(audit.get("blockedAutoRepairs") or [])
 
     actions: List[Dict[str, Any]] = []
@@ -2421,7 +2432,7 @@ def build_repair_plan(
                 "target": "header_default",
                 "confidence": 0.93,
                 "risk": "low",
-                "reason": "Known thesis template header text should match the detected Chinese thesis title.",
+                "reason": "Existing eligible headers should follow the configured text policy.",
                 "legacySource": "headerText",
                 "header_text": header_text,
                 "modifiesText": False,
@@ -2516,6 +2527,8 @@ def build_repair_plan(
         "repairMode": repair_mode,
         "numberingScheme": numbering_analysis.get("dominantFamily") or "science_decimal",
         "headerText": header_text,
+        "headerTextMode": header_mode,
+        "allowStructuralRebuild": allow_structural_rebuild,
         "documentRiskClass": document_risk_class,
         "recommendedMode": recommended_mode,
         "editableStartParagraph": editable_start,
@@ -2608,7 +2621,9 @@ def diff_audits(before: Dict[str, Any], after: Dict[str, Any], plan: Optional[Di
 
 
 def write_json(data: Dict[str, Any], path: Optional[str]) -> None:
-    text = json.dumps(data, ensure_ascii=False, indent=2)
+    # Keep reports writable when PDF extraction emits a lone surrogate for a
+    # mathematical glyph; JSON escaping preserves the diagnostic value.
+    text = json.dumps(data, ensure_ascii=True, indent=2)
     if path:
         Path(path).write_text(text, encoding="utf-8")
     else:

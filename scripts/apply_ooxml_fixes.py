@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from lxml import etree as LET
+from formatter_core.word_headers import apply_header_policy, header_sections, initialize_fresh_footers
 
 from docx_ooxml import (
     NS,
@@ -505,14 +506,18 @@ def insert_paragraph_after(body: ET.Element, anchor: ET.Element, text: str, sour
 def strip_leading_numeric_reference_label(paragraph: ET.Element) -> bool:
     texts = paragraph.findall(".//w:t", NS)
     full_text = "".join(node.text or "" for node in texts)
-    updated = re.sub(r"^\s*\[\s*\d+\s*\]\s*", "", full_text)
-    if updated == full_text:
+    match = re.match(r"^\s*(?:\[\s*\d+\s*\]|\d{1,3}[.)、])\s*", full_text)
+    if not match:
         return False
+    remaining = match.end()
     for node in texts:
-        node.text = ""
-    if texts:
-        texts[0].text = updated
-        ensure_text_node_preserve(texts[0], updated)
+        original = node.text or ""
+        removed = min(remaining, len(original))
+        node.text = original[removed:]
+        remaining -= removed
+        ensure_text_node_preserve(node, node.text)
+        if not remaining:
+            break
     return True
 
 
@@ -620,6 +625,8 @@ def summarize_execution_log(execution_log: List[Dict[str, Any]]) -> Dict[str, An
             continue
         if action.startswith("preserve_"):
             blocked_by_policy.append(action)
+        elif action in {"header_manual_review", "semantic_correction_needs_review"}:
+            detected_only.append(action)
         elif action in {"replace_header_text", "ensure_update_fields_on_open", "fix_rel_paths"}:
             auto_fixed_actions.append(action)
         else:
@@ -1953,6 +1960,13 @@ def normalize_body_style_fallback(
 
 def normalize_decimal_heading_prefixes(body_paragraphs: List[ET.Element], protected_prefix_end: int) -> List[Dict[str, Any]]:
     execution_log: List[Dict[str, Any]] = []
+    # The decimal-only counter below cannot represent 第X章 + X.Y. The
+    # numbering planner already treats that combination as intentional; don't
+    # bypass its protection here and turn X.Y into a global integer sequence.
+    if any(paragraph_style_id(paragraph) == "zafu_heading1"
+           and (parse_manual_numbering((paragraph_text(paragraph) or "").strip()) or {}).get("family") == "humanities_chapter"
+           for paragraph in body_paragraphs[protected_prefix_end:]):
+        return [{"action": "preserve_mixed_chapter_decimal_prefixes", "reason": "decimal_only_counter_not_applicable"}]
     counters = [0, 0, 0]
     style_levels = {"zafu_heading1": 1, "zafu_heading2": 2, "zafu_heading3": 3}
     for index, paragraph in enumerate(body_paragraphs):
@@ -2187,6 +2201,7 @@ def ensure_body_header_references(
     protected_prefix_end: int,
     body_start_paragraph: Optional[int] = None,
     template_section_patterns: Optional[List[Dict[str, Any]]] = None,
+    preserve_headers: bool = False,
 ) -> List[Dict[str, Any]]:
     header_targets = section_relationship_targets(files, "/header")
     footer_targets = section_relationship_targets(files, "/footer")
@@ -2196,7 +2211,7 @@ def ensure_body_header_references(
         for section in classify_section_roles(document_root, protected_prefix_end, body_start_paragraph):
             template_pattern = template_section_info_for_role(template_section_patterns, section["role"])
             sectpr = section["sectPr"]
-            header_result = apply_template_section_reference_pattern(
+            header_result = {"changed": False, "removed": 0, "ensured": 0} if preserve_headers else apply_template_section_reference_pattern(
                 sectpr,
                 "headerReference",
                 template_pattern.get("headerReferences") or [],
@@ -2210,7 +2225,7 @@ def ensure_body_header_references(
             )
             first_header_forced = False
             default_header_forced = False
-            if section["role"] != "front_matter" and section_header_rel_id:
+            if not preserve_headers and section["role"] != "front_matter" and section_header_rel_id:
                 first_header_forced = ensure_section_reference(sectpr, "headerReference", "first", section_header_rel_id)
                 default_header_forced = ensure_section_reference(sectpr, "headerReference", "default", section_header_rel_id)
             if header_result["changed"] or footer_result["changed"]:
@@ -2248,11 +2263,11 @@ def ensure_body_header_references(
         if section["role"] == "front_matter":
             continue
         sectpr = section["sectPr"]
-        first_header_removed = remove_section_reference(sectpr, "headerReference", "first")
+        first_header_removed = False if preserve_headers else remove_section_reference(sectpr, "headerReference", "first")
         first_footer_removed = remove_section_reference(sectpr, "footerReference", "first")
         header_changed = (
             ensure_section_reference(sectpr, "headerReference", "default", section_header_rel_id)
-            if section_header_rel_id
+            if section_header_rel_id and not preserve_headers
             else False
         )
         footer_changed = (
@@ -2439,6 +2454,10 @@ def normalize_front_abstract_block(
         index
         for index in range(protected_prefix_end, body_start_paragraph)
         if (element_text(paragraphs[index]) or "").strip()
+        and not any(re.search(r"\bTOC\b", node.get(qn("instr"), ""), re.I)
+                    for node in paragraphs[index].iter(qn("fldSimple")))
+        and not any(re.search(r"\bTOC\b", node.text or "", re.I)
+                    for node in paragraphs[index].iter(qn("instrText")))
     ]
     if not candidate_indices:
         return []
@@ -2660,10 +2679,8 @@ def normalize_front_abstract_block(
 
     if keywords_en_index is not None:
         keywords_paragraph_en = paragraphs[keywords_en_index]
-        keywords_text_en = (element_text(keywords_paragraph_en) or "").strip()
-        if normalize_front_matter_token(keywords_text_en).startswith("Keywords") and not keywords_text_en.startswith("Keywords:"):
-            keywords_text_en = f"Keywords:{keywords_text_en[len('Keywords'):]}"
-            replace_paragraph_plain_text(keywords_paragraph_en, keywords_text_en)
+        # Both spaced and unspaced labels below are supported. Do not slice a
+        # spaced source using the length of the normalized (unspaced) label.
         special_format_applied = apply_label_content_format(
             keywords_paragraph_en,
             ["Key words:", "Key Words:", "KEY WORDS:", "Keywords:", "KEYWORDS:"],
@@ -3026,7 +3043,6 @@ def apply_section_geometry_from_template(
         section_type_changed = False
         columns_changed = False
         if template_section:
-            title_pg_changed = set_section_title_page(sect, bool(template_section.get("titlePg")))
             section_type_changed = set_section_type_value(sect, template_section.get("sectionType"))
             columns = template_section.get("columns") or {}
             columns_changed = set_section_columns(
@@ -3089,6 +3105,7 @@ def replace_header_text(xml_bytes: bytes, text: str) -> bytes:
     size.set(qn("val"), str(pt_to_half_points(9)))
     size_cs = ET.SubElement(rpr, qn("szCs"))
     size_cs.set(qn("val"), str(pt_to_half_points(9)))
+    ET.SubElement(rpr, qn("color"), {qn("val"): "000000"})
     t = ET.SubElement(run, qn("t"))
     t.text = text
     ensure_text_node_preserve(t, text)
@@ -3537,6 +3554,7 @@ def main() -> None:
     parser.add_argument("--front-matter-policy-yaml", help="Optional profile front-matter policy YAML")
     parser.add_argument("--validators-yaml", help="Optional profile validator selection YAML")
     parser.add_argument("--report-json", help="Write execution and diff report JSON to this path")
+    parser.add_argument("--allow-structural-rebuild", action="store_true", help="Allow template front-matter replacement")
     args = parser.parse_args()
 
     rules = load_rules(args.rules_yaml)
@@ -3551,6 +3569,7 @@ def main() -> None:
             before_audit,
             style_map_path=args.style_map_yaml,
             front_matter_policy_path=args.front_matter_policy_yaml,
+            allow_structural_rebuild=args.allow_structural_rebuild,
         )
     editable_start_paragraph = safe_int(plan.get("editableStartParagraph")) or 0
     source_front_matter_drop_paragraph_count = safe_int(plan.get("sourceFrontMatterDropParagraphCount"))
@@ -3578,7 +3597,8 @@ def main() -> None:
 
     force_template_front_matter = bool(front_matter_policy_value(front_matter_policy, "force_template_front_matter", False))
     use_template_front_matter = bool(
-        template_files
+        args.allow_structural_rebuild
+        and template_files
         and template_document_root is not None
         and template_prefix_paragraph_count > 0
         and (force_template_front_matter or plan.get("useTemplateFrontMatter"))
@@ -3680,7 +3700,8 @@ def main() -> None:
         index_shift,
         protected_prefix_end,
     )
-    execution_log.extend(ensure_section_break_before_paragraph(document_root, body_start_paragraph, protected_prefix_end))
+    if args.allow_structural_rebuild:
+        execution_log.extend(ensure_section_break_before_paragraph(document_root, body_start_paragraph, protected_prefix_end))
 
     if template_audit:
         execution_log.extend(
@@ -3702,6 +3723,7 @@ def main() -> None:
             protected_prefix_end,
             body_start_paragraph,
             template_section_patterns=template_section_patterns,
+            preserve_headers=True,
         )
     )
     execution_log.extend(apply_section_page_numbering(document_root, protected_prefix_end, body_start_paragraph))
@@ -3711,6 +3733,13 @@ def main() -> None:
     if body is None:
         raise SystemExit("word/document.xml has no w:body after repair planning")
     body_paragraphs = paragraph_nodes(body)
+    corrected_nodes = []
+    for correction in plan.get("semanticCorrections") or []:
+        corrected_index = correction["paragraphIndex"]
+        if corrected_index >= source_prefix_paragraph_count:
+            corrected_index += index_shift
+        if protected_prefix_end <= corrected_index < len(body_paragraphs):
+            corrected_nodes.append((body_paragraphs[corrected_index], correction))
     for paragraph_index_str, style_id in (plan.get("styleMapping") or {}).items():
         index = safe_int(paragraph_index_str)
         if index is None:
@@ -3727,6 +3756,8 @@ def main() -> None:
             continue
         paragraph = body_paragraphs[index]
         special_format_applied = False
+        if any(node is paragraph and not correction["role"].startswith("heading_") for node, correction in corrected_nodes):
+            clear_paragraph_heading_semantics(paragraph)
         if style_id == "zafu_keywords_cn":
             special_format_applied = apply_label_content_format(
                 paragraph,
@@ -3836,20 +3867,61 @@ def main() -> None:
     bookmark_map, bookmark_changes = insert_caption_bookmarks(body_paragraphs, protected_prefix_end, document_root)
     execution_log.extend(bookmark_changes)
     execution_log.extend(replace_cross_reference_runs(body_paragraphs, protected_prefix_end, bookmark_map))
-    execution_log.extend(normalize_decimal_heading_prefixes(body_paragraphs, protected_prefix_end))
+    if not (rules.get("page") or {}).get("fresh_document"):
+        execution_log.extend(normalize_decimal_heading_prefixes(body_paragraphs, protected_prefix_end))
     execution_log.extend(normalize_runs_by_existing_styles(body_paragraphs, style_specs, protected_prefix_end))
     execution_log.extend(normalize_body_style_fallback(body_paragraphs, style_specs, protected_prefix_end, body_start_paragraph))
 
-    header_text = str(plan.get("headerText") or "").strip()
-    if not header_text:
+    for paragraph, correction in corrected_nodes:
+        if paragraph not in list(body):
+            execution_log.append({"action": "semantic_correction_needs_review", "blockId": correction["blockId"], "reason": "paragraph_restructured"})
+            continue
+        spec = style_specs.get(correction["styleId"])
+        if spec:
+            if not correction["role"].startswith("heading_"):
+                clear_paragraph_heading_semantics(paragraph)
+            apply_style_to_paragraph(paragraph, spec)
+            apply_run_defaults(paragraph, spec, preserve_emphasis=correction["role"] == "body")
+            execution_log.append({"action": "apply_semantic_correction", **correction})
+
+    header_mode = (rules.get("page") or {}).get("header_text_mode", "thesis_title_after_toc")
+    header_text = str((rules.get("page") or {}).get("header_text") or "") if header_mode == "fixed" else str(plan.get("headerText") or "").strip()
+    if not header_text and header_mode not in {"fixed", "preserve"}:
         header_text = infer_header_text_from_paragraphs(body_paragraphs, protected_prefix_end)
-    target_headers = {"word/header2.xml"} if "word/header2.xml" in files else {
-        name for name in files if name.startswith("word/header") and name.endswith(".xml")
-    }
-    if target_headers:
-        for name in sorted(target_headers):
-            files[name] = replace_header_text(files[name], header_text)
-            execution_log.append({"action": "replace_header_text", "target": name, "text": header_text})
+    page_rules = rules.get("page") or {}
+    execution_log.extend(apply_header_policy(document_root, files, header_text, header_mode, replace_header_text,
+        create_missing=bool(page_rules.get("create_missing_body_headers"))))
+    if page_rules.get("fresh_document"):
+        execution_log.extend(initialize_fresh_footers(document_root, files, str(rules.get("latin_font_override") or "Times New Roman")))
+
+    # Explicit Latin overrides converge direct formatting too, including field
+    # caches and hyperlinks. Never change protected cover runs or shared styles.
+    latin_font = rules.get("latin_font_override")
+    if latin_font:
+        for paragraph in body_paragraphs[protected_prefix_end:]:
+            for run in paragraph.iter(qn("r")):
+                rpr = run.find("w:rPr", NS)
+                if rpr is None:
+                    rpr = ET.Element(qn("rPr"))
+                    run.insert(0, rpr)
+                fonts = ensure_child(rpr, "rFonts")
+                for slot in ("ascii", "hAnsi"):
+                    fonts.set(qn(slot), str(latin_font))
+                    fonts.attrib.pop(qn(slot + "Theme"), None)
+        for section in header_sections(document_root, files):
+            if section["scope"] != "body":
+                continue
+            for header in section["headers"].values():
+                path = header["path"]
+                if not path or path not in files:
+                    continue
+                root = ET.fromstring(files[path])
+                for fonts in root.iter(qn("rFonts")):
+                    for slot in ("ascii", "hAnsi"):
+                        fonts.set(qn(slot), str(latin_font))
+                        fonts.attrib.pop(qn(slot + "Theme"), None)
+                files[path] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        execution_log.append({"action": "apply_latin_font_override", "font": latin_font, "protectedPrefix": protected_prefix_end})
 
     if "word/settings.xml" in files:
         files["word/settings.xml"] = ensure_update_fields_setting(files["word/settings.xml"])
@@ -3910,5 +3982,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

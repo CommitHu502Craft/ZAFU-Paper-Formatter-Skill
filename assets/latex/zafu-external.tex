@@ -1,0 +1,21 @@
+\documentclass{ZafuThesis}
+\usepackage{amsmath,amssymb}
+\usepackage{pdfpages,pdflscape,float,caption}
+% Local English abstract style without upstream page-counter reset.
+\fancypagestyle{formatterabstract}{
+  \fancyhf{}
+  \fancyhead[C]{\songti\bfseries\zihao{-5}浙江农林大学本科生毕业论文（设计）}
+  \fancyfoot[C]{\normalfont\fontsize{10.5}{15}\selectfont\thepage}
+  \renewcommand{\headrulewidth}{0.3pt}
+}
+\IfFontExistsTF{SimSun}{\setCJKfamilyfont{zhsong}{SimSun}}{\PackageWarning{thesis-formatter}{Upstream Song family retained}}
+\IfFontExistsTF{KaiTi}{\setCJKfamilyfont{zhkai}{KaiTi}}{\PackageWarning{thesis-formatter}{Upstream Kai family retained}}
+\IfFontExistsTF{SimHei}{\setCJKfamilyfont{zhhei}{SimHei}}{\PackageWarning{thesis-formatter}{Upstream Hei family retained}}
+\IfFontExistsTF{FangSong}{\setCJKfamilyfont{zhfs}{FangSong}}{\PackageWarning{thesis-formatter}{Upstream FangSong family retained}}
+@@SETTINGS@@
+@@METADATA@@
+\begin{document}
+@@FRONTMATTER@@
+\mainmatter
+@@CONTENT@@
+\end{document}

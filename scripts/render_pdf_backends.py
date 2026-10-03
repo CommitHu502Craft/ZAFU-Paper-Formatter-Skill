@@ -63,7 +63,12 @@ try {{
     exit 3
 }}
 try {{
+    # Refresh fields in memory before exporting, but keep the delivered DOCX
+    # untouched so Word does not rewrite/drop custom thesis styles on save.
     $doc = $app.Documents.Open('{docx}', $false, $true)
+    try {{ $doc.Fields.Update() | Out-Null }} catch {{}}
+    try {{ foreach ($toc in $doc.TablesOfContents) {{ $toc.Update() | Out-Null }} }} catch {{}}
+    try {{ $doc.Repaginate() }} catch {{}}
     $doc.ExportAsFixedFormat('{pdf}', 17)
     $doc.Close(0)
     Write-Output 'CONVERT_OK'

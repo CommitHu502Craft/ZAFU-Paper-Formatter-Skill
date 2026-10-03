@@ -26,6 +26,11 @@ from typing import Any, Dict, List, Optional
 from render_pdf_backends import convert_docx_to_pdf, detect_libreoffice
 
 
+def _json_text(payload: Any) -> str:
+    """Serialize render diagnostics when PDF extraction returns lone surrogates."""
+    return json.dumps(payload, ensure_ascii=True, indent=2)
+
+
 def detect_pdftoppm() -> Optional[str]:
     return shutil.which("pdftoppm")
 
@@ -619,6 +624,9 @@ def run_render_validation(
     output_dir: str,
     timeout_sec: int = 180,
     source_page_hint: Optional[int] = None,
+    *,
+    analyze_layout: bool = True,
+    export_previews: bool = False,
 ) -> Dict[str, Any]:
     source = Path(docx_path).resolve()
     render_dir = Path(output_dir).resolve()
@@ -641,6 +649,10 @@ def run_render_validation(
         "criticalPages": [],
         "visualFindings": [],
         "visualReviewManifestPath": None,
+        "previewExport": {"available": False, "backend": None, "backendPath": None, "manifestPath": None, "images": [], "reason": "Page previews were not requested or conversion was unavailable"},
+        "layoutAnalyzed": False,
+        "previewsRequested": export_previews,
+        "visualReviewed": False,
     }
 
     conversion = convert_docx_to_pdf(source, render_dir, timeout_sec=timeout_sec)
@@ -654,22 +666,42 @@ def run_render_validation(
 
     pdf_path = Path(conversion["pdfPath"])
     report["pdfPath"] = str(pdf_path)
+    return analyze_pdf_document(pdf_path, render_dir, report=report, timeout_sec=timeout_sec, source_page_hint=source_page_hint, analyze_layout=analyze_layout, export_previews=export_previews)
+
+
+def analyze_pdf_document(
+    pdf_path: Path,
+    render_dir: Path,
+    *,
+    report: Optional[Dict[str, Any]] = None,
+    timeout_sec: int = 180,
+    source_page_hint: Optional[int] = None,
+    analyze_layout: bool = True,
+    export_previews: bool = False,
+) -> Dict[str, Any]:
+    render_dir.mkdir(parents=True, exist_ok=True)
+    if report is None:
+        report = {"available": True, "pdfPath": str(pdf_path), "contactSheets": [], "criticalPages": [], "visualFindings": [], "layoutAnalyzed": False, "previewsRequested": export_previews, "visualReviewed": False}
     page_count = count_pdf_pages(pdf_path) or 0
     report["pageCount"] = page_count
+
+    if not analyze_layout and not export_previews:
+        report["status"] = "ok"
+        return report
 
     page_texts = extract_page_texts(pdf_path)
     semantic = locate_semantic_pages(page_texts)
     semantic["pageSummaries"] = build_page_summaries(page_texts)
     semantic_path = render_dir / "semantic_pages.json"
-    semantic_path.write_text(json.dumps(semantic, ensure_ascii=False, indent=2), encoding="utf-8")
+    semantic_path.write_text(_json_text(semantic), encoding="utf-8")
     report["semanticPagesPath"] = str(semantic_path)
     report["suggestedReviewPages"] = suggested_review_pages(semantic)
 
-    critical_entries = export_critical_pages(pdf_path, render_dir / "critical_pages", semantic, page_count, timeout_sec)
+    critical_entries = export_critical_pages(pdf_path, render_dir / "critical_pages", semantic, page_count, timeout_sec) if export_previews else []
     report["criticalPages"] = critical_entries
 
-    thumbnails = export_all_page_thumbnails(pdf_path, render_dir / "all_pages", page_count, timeout_sec)
-    sheets = build_contact_sheets(thumbnails, render_dir)
+    thumbnails = export_all_page_thumbnails(pdf_path, render_dir / "all_pages", page_count, timeout_sec) if export_previews else []
+    sheets = build_contact_sheets(thumbnails, render_dir) if thumbnails else []
     report["contactSheets"] = [str(p) for p in sheets]
 
     findings = analyze_page_geometry(thumbnails)
@@ -682,6 +714,7 @@ def run_render_validation(
             continue
         findings.append(finding)
     report["visualFindings"] = findings
+    report["layoutAnalyzed"] = True
 
     manifest = {
         "pdfPath": str(pdf_path),
@@ -693,6 +726,7 @@ def run_render_validation(
         "visualFindings": findings,
         "regions": semantic.get("regions"),
         "unlocatedRegions": semantic.get("unlocatedRegions"),
+        "visualReviewed": False,
         "reviewInstructions": [
             "有读图能力时:先看 contact_sheet.png 检查整体分页(空白页、异常留白、标题落单),再看 critical_pages/ 的封面、目录、摘要、正文首页和参考文献页。",
             "没有读图能力时:不要尝试读图。直接依据本文件的 visualFindings 与 regions/unlocatedRegions(均来自 PDF 文本和页面几何,无需看图),或运行 scripts/suggest_visual_refinements.py 自动起草修复计划;并把 contact_sheet.png 与 critical_pages/ 的路径告诉用户请其人工浏览。",
@@ -701,7 +735,7 @@ def run_render_validation(
         ],
     }
     manifest_path = render_dir / "visual_review_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(_json_text(manifest), encoding="utf-8")
     report["visualReviewManifestPath"] = str(manifest_path)
 
     report["status"] = "ok"
@@ -731,12 +765,13 @@ def main() -> None:
     parser.add_argument("docx", help="DOCX file to render")
     parser.add_argument("--output-dir", required=True, help="Directory for PDF and render artifacts")
     parser.add_argument("--output", "-o", help="Write JSON report to this path")
+    parser.add_argument("--check", choices=["pdf", "layout", "visual"], default="layout", help="Page images are generated only with visual")
     parser.add_argument("--timeout-sec", type=int, default=180, help="Renderer timeout in seconds")
     parser.add_argument("--source-page-hint", type=int, help="Approximate page count of the source document for explosion detection")
     args = parser.parse_args()
 
-    report = run_render_validation(args.docx, args.output_dir, timeout_sec=args.timeout_sec, source_page_hint=args.source_page_hint)
-    text = json.dumps(report, ensure_ascii=False, indent=2)
+    report = run_render_validation(args.docx, args.output_dir, timeout_sec=args.timeout_sec, source_page_hint=args.source_page_hint, analyze_layout=args.check != "pdf", export_previews=args.check == "visual")
+    text = _json_text(report)
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
     else:

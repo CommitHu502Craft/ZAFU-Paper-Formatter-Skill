@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from docx_ooxml import diff_audits, load_rules, parse_document, write_json
+from docx_ooxml import diff_audits, load_rules, parse_document, write_json, qn
 from render_validate_docx import run_render_validation
 from validate_visual_contracts import validate_visual_contracts
+from formatter_core.checks import CheckPolicy
+from formatter_core.word_headers import check_header_policy
 
 NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -43,6 +46,8 @@ HARD_FAIL_ISSUE_TYPES = {
     "keywords_label_content_format",
     "excessive_section_count",
     "excessive_page_breaks",
+    "field_structure_issues",
+    "reference_entry_count_mismatch",
 }
 
 
@@ -341,6 +346,53 @@ def core_relationship_part_integrity_check(docx_path):
     return issues
 
 
+def field_integrity_check(docx_path):
+    """Check fields in each story without updating/saving Word or cached text."""
+    errors = []
+    warnings = []
+    with zipfile.ZipFile(docx_path) as package:
+        story_names = [name for name in package.namelist() if re.fullmatch(
+            r"word/(?:document|header[^/]*|footer[^/]*|footnotes|endnotes)\.xml", name)]
+        for name in story_names:
+            root = ET.fromstring(package.read(name))
+            # Footnotes/endnotes are separate stories, not one concatenated field.
+            stories = list(root) if name.endswith(("/footnotes.xml", "/endnotes.xml")) else [root]
+            for story in stories:
+                stack = []
+                instructions = []
+                for node in story.iter():
+                    if node.tag == qn("fldChar"):
+                        kind = node.get(qn("fldCharType"))
+                        if kind == "begin":
+                            stack.append([])
+                        elif kind == "separate":
+                            if not stack:
+                                errors.append({"part": name, "kind": "field_separator_without_begin"})
+                        elif kind == "end":
+                            if not stack:
+                                errors.append({"part": name, "kind": "field_end_without_begin"})
+                            else:
+                                instructions.append("".join(stack.pop()))
+                    elif node.tag == qn("instrText") and stack:
+                        stack[-1].append(node.text or "")
+                    elif node.tag == qn("fldSimple"):
+                        instructions.append(node.get(qn("instr"), ""))
+                if stack:
+                    errors.append({"part": name, "kind": "unclosed_fields", "count": len(stack)})
+                if name.startswith("word/footer"):
+                    page_count = sum(bool(re.match(r"^\s*PAGE(?:\s|$)", value, re.I)) for value in instructions)
+                    if page_count > 1:
+                        warnings.append({"part": name, "kind": "duplicate_page_fields", "count": page_count})
+        document = ET.fromstring(package.read("word/document.xml"))
+        bookmarks = {node.get(qn("name")) for node in document.iter(qn("bookmarkStart"))}
+        for node in document.iter():
+            instruction = node.get(qn("instr"), "") if node.tag == qn("fldSimple") else node.text or "" if node.tag == qn("instrText") else ""
+            match = re.match(r'^\s*PAGEREF\s+"?([^\s"]+)', instruction, re.I)
+            if match and match.group(1) not in bookmarks:
+                warnings.append({"part": "word/document.xml", "kind": "unresolved_pageref_bookmark", "bookmark": match.group(1)})
+    return errors, warnings
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate a repaired DOCX and optionally compare it against the original.")
     parser.add_argument("docx", help="DOCX file to validate")
@@ -351,9 +403,13 @@ def main() -> None:
     parser.add_argument("--front-matter-policy-yaml", help="Optional profile front-matter policy YAML")
     parser.add_argument("--validators-yaml", help="Optional profile validator selection YAML")
     parser.add_argument("--plan-json", help="Optional plan JSON to include in the report")
+    parser.add_argument("--thesis-ir-json", help="Optional current source IR for generated bibliography count checks")
     parser.add_argument("--output", "-o", help="Write JSON output to this path")
     parser.add_argument("--render-output-dir", help="Optional directory for render validation artifacts")
+    parser.add_argument("--check", choices=["structural", "layout", "visual"], default="structural", help="Structural checks by default; layout or visual rendering is opt-in")
+    parser.add_argument("--export-pdf", action="store_true", help="Export PDF without implicitly generating page images")
     args = parser.parse_args()
+    check_policy = CheckPolicy(args.check, args.export_pdf)
 
     rules = load_rules(args.rules_yaml)
     style_map_config = load_profile_yaml(args.style_map_yaml)
@@ -378,10 +434,13 @@ def main() -> None:
                     break
     if not header_text:
         header_text = ((audit.get("preservationHints") or {}).get("preferredHeaderText")) or None
-    header_ok = True
-    if header_text:
-        header_texts = [part.get("text") for name, part in (audit.get("headerFooterParts") or {}).items() if "header" in name]
-        header_ok = any(text == header_text for text in header_texts) if header_texts else False
+    header_mode = (rules.get("page") or {}).get("header_text_mode", "thesis_title_after_toc")
+    if header_mode == "fixed":
+        header_text = (rules.get("page") or {}).get("header_text") or ""
+    with zipfile.ZipFile(args.docx) as package:
+        header_files = {name: package.read(name) for name in package.namelist() if name.startswith("word/header") or name in {"word/document.xml", "word/_rels/document.xml.rels"}}
+    header_policy_issues = check_header_policy(ET.fromstring(header_files["word/document.xml"]), header_files, header_text or "", header_mode)
+    header_ok = not header_policy_issues
 
     style_ids = set(audit.get("styles") or {})
     required_style_ids = resolve_required_style_ids(style_map_config)
@@ -406,9 +465,18 @@ def main() -> None:
     numbering_part_issues = numbering_part_check(audit)
     image_relationship_issues = image_relationship_integrity_check(args.docx)
     core_relationship_part_issues = core_relationship_part_integrity_check(args.docx)
+    field_errors, field_warnings = field_integrity_check(args.docx)
+    reference_count_issue = None
+    if args.thesis_ir_json and (rules.get("page") or {}).get("fresh_document"):
+        source_ir = json.loads(Path(args.thesis_ir_json).read_text(encoding="utf-8"))
+        expected_entries = len((source_ir.get("references") or {}).get("entries") or [])
+        actual_entries = sum(p.get("styleId") in {"zafu_references_cn", "zafu_references_en"} for p in audit.get("paragraphs") or [])
+        if expected_entries != actual_entries:
+            reference_count_issue = {"type": "reference_entry_count_mismatch", "expected": expected_entries, "actual": actual_entries}
 
     structural_validation = {
         "checks": {
+            "fieldStructureValid": not field_errors,
             "docxPackageIntegrity": not package_issues if rule_enabled(structural_enabled, "package_integrity") else None,
             "requiredPartsPresent": (
                 not any(item.get("type") == "missing_required_part" for item in package_issues)
@@ -429,6 +497,12 @@ def main() -> None:
     }
     if package_issues and rule_enabled(structural_enabled, "package_integrity"):
         structural_validation["issues"].append({"type": "docx_package_issues", "details": package_issues})
+    if field_errors:
+        structural_validation["issues"].append({"type": "field_structure_issues", "details": field_errors[:100]})
+    if field_warnings:
+        structural_validation["issues"].append({"type": "field_cache_needs_review", "details": field_warnings[:100]})
+    if reference_count_issue:
+        structural_validation["issues"].append(reference_count_issue)
     if not (audit.get("headerFooterParts") or {}) and rule_enabled(structural_enabled, "header_footer_part_presence"):
         structural_validation["issues"].append({"type": "missing_header_footer_parts"})
     if not (audit.get("styles") or {}):
@@ -463,7 +537,8 @@ def main() -> None:
         else (Path(args.docx).resolve().parent / "render_validation")
     )
     render_output_dir = Path(args.render_output_dir).resolve() if args.render_output_dir else default_render_output_dir
-    if render_enabled and "pdf_conversion_if_available" not in render_enabled:
+    render_output_dir.mkdir(parents=True, exist_ok=True)
+    if not check_policy.render or (not args.export_pdf and render_enabled and "pdf_conversion_if_available" not in render_enabled):
         render_validation = {
             "sourceDocx": str(Path(args.docx).resolve()),
             "outputDir": str(render_output_dir),
@@ -471,10 +546,11 @@ def main() -> None:
             "backend": None,
             "backendPath": None,
             "status": "skipped",
-            "reason": "render validator disabled by profile validators.yaml",
+            "reason": "structural-only check; PDF and layout were not requested" if not check_policy.render else "render validator disabled by profile validators.yaml",
             "pdfPath": None,
             "pageCount": None,
             "previewDir": str(render_output_dir / "before_after_page_preview"),
+            "previewExport": {"available": False, "backend": None, "backendPath": None, "manifestPath": None, "images": [], "reason": "Page previews were not requested"},
             "suggestedReviewPages": {
                 "cover": None,
                 "toc": None,
@@ -484,8 +560,16 @@ def main() -> None:
             },
         }
     else:
-        render_validation = run_render_validation(args.docx, str(render_output_dir))
-    (render_output_dir / "render_validation_report.json").write_text(json.dumps(render_validation, ensure_ascii=False, indent=2), encoding="utf-8")
+        render_validation = run_render_validation(
+            args.docx,
+            str(render_output_dir),
+            analyze_layout=args.check != "structural",
+            export_previews=args.check == "visual",
+        )
+    render_validation["checkPolicy"] = check_policy.summary()
+    # PDF text extraction may contain lone surrogate code points from
+    # mathematical glyphs; escape them so validation can finish on Windows.
+    (render_output_dir / "render_validation_report.json").write_text(json.dumps(render_validation, ensure_ascii=True, indent=2), encoding="utf-8")
     try:
         visual_validation = validate_visual_contracts(args.docx)
     except (KeyError, ValueError, OSError, zipfile.BadZipFile) as exc:
@@ -529,7 +613,7 @@ def main() -> None:
     if geometry_issues and rule_enabled(rule_enabled_set, "page_geometry"):
         rule_validation["issues"].append({"type": "section_geometry_mismatch", "details": geometry_issues})
     if not header_ok and rule_enabled(rule_enabled_set, "header_text"):
-        rule_validation["issues"].append({"type": "header_text_mismatch", "expected": header_text})
+        rule_validation["issues"].extend(header_policy_issues)
     if header_border_issues and rule_enabled(rule_enabled_set, "header_bottom_border"):
         rule_validation["issues"].append({"type": "header_bottom_border_missing", "details": header_border_issues})
     if missing_styles and rule_enabled(rule_enabled_set, "body_style"):
@@ -539,7 +623,8 @@ def main() -> None:
     if filtered_font_risks and rule_enabled(rule_enabled_set, "body_style"):
         rule_validation["issues"].append({"type": "font_slot_risks", "details": filtered_font_risks[:100]})
     if missing_front_matter_markers and rule_enabled(rule_enabled_set, "front_matter_structure"):
-        rule_validation["issues"].append({"type": "missing_front_matter_markers", "details": missing_front_matter_markers})
+        issue_type = "front_matter_preserved_needs_review" if plan and plan.get("allowStructuralRebuild") is False else "missing_front_matter_markers"
+        rule_validation["issues"].append({"type": issue_type, "details": missing_front_matter_markers})
     if (audit.get("frontMatterAnalysis") or {}).get("issues") and rule_enabled(rule_enabled_set, "front_matter_structure"):
         rule_validation["issues"].append({"type": "front_matter_structure", "details": (audit.get("frontMatterAnalysis") or {}).get("issues")[:50]})
     if (audit.get("captionLayout") or {}).get("issues") and rule_enabled(rule_enabled_set, "caption_layout"):

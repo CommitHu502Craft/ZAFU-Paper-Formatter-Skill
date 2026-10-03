@@ -13,13 +13,13 @@
     ],
     "requiresValidationReport": true,
     "requiresRenderValidationReport": true,
-    "requiresRenderPreviewDir": true,
-    "requiresPreviewManifest": true,
+    "requiresRenderPreviewDir": false,
+    "requiresPreviewManifest": false,
     "validationSummary": {
-      "renderStatus": "unavailable"
+      "renderStatus": "skipped"
     },
     "renderValidation": {
-      "status": "unavailable"
+      "status": "skipped"
     },
     "previewExport": {
       "available": false,

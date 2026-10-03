@@ -15,7 +15,7 @@
     "recommendedMode": "rebuild",
     "requiresStrategySelection": true,
     "requiresThesisIr": true,
-    "requiresCitationConversionPlan": true,
+    "requiresCitationConversionPlan": false,
     "chosenStrategy": "text_rebuild",
     "strategyReasonsInclude": [
       "reference_list_numeric_labels_can_be_stripped_in_rebuild",
@@ -26,12 +26,6 @@
       "safeListLabelStripCandidate": true,
       "bodyNumericCitationCount": 1
     },
-    "citationConversionPlan": {
-      "recommendedAction": "manual_review_required",
-      "safeListLabelStripCandidate": true,
-      "bodyNumericCitationCount": 1,
-      "candidateCount": 1
-    },
     "preflightBlockedAutoRepairsIncludes": [
       "convert_bibliography_citation_mode"
     ],
@@ -41,6 +35,12 @@
     "requiresRepairedDocx": true,
     "validationSummary": {
       "qualityGatePassed": true
+    },
+    "requiresReferenceFormatReport": true,
+    "referenceFormat": {
+      "citationManagement": false,
+      "automaticTextChanges": false,
+      "standard": "GB/T 7714-2015"
     }
   }
 }

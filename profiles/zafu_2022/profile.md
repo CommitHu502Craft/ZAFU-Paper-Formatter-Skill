@@ -37,6 +37,10 @@ Blocked by default:
 - field/bookmark reconstruction
 - floating-image conversion
 
-## Notes
+## LaTeX adapter
+
+`latex.yaml` selects the original minimal template and font preferences. Geometry and supported body/heading rules derive from the effective profile rules. This adapter is explicitly draft-level: it does not reproduce the immutable Word cover/integrity pages, certify department-specific compliance or promise identical pagination. External ZafuTemplatePublic files are not bundled.
+
+## Resource compatibility
 
 This profile currently mirrors existing resources that still live under the repository root, `assets/`, and `references/`.

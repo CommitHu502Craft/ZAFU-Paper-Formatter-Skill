@@ -48,6 +48,7 @@ def extract_markdown_source_blocks(lines: List[str]) -> List[Dict[str, Any]]:
     blocks: List[Dict[str, Any]] = []
     paragraph_lines: List[str] = []
     paragraph_start: Optional[int] = None
+    in_references = False
 
     def flush_paragraph() -> None:
         nonlocal paragraph_start
@@ -76,6 +77,7 @@ def extract_markdown_source_blocks(lines: List[str]) -> List[Dict[str, Any]]:
             continue
         if heading:
             flush_paragraph()
+            in_references = bool(REFERENCES_RE.fullmatch(heading.group("text").strip()))
             blocks.append(
                 {
                     "kind": "heading",
@@ -85,6 +87,14 @@ def extract_markdown_source_blocks(lines: List[str]) -> List[Dict[str, Any]]:
                     "sourceAnchor": {"kind": "line", "index": index},
                 }
             )
+            index += 1
+            continue
+        if in_references and re.match(r"^(?:\[\s*\d+\s*\]|\d+[.)、])\s*\S", stripped):
+            flush_paragraph()
+            blocks.append({
+                "kind": "reference", "sourceIndex": index, "text": stripped,
+                "sourceAnchor": {"kind": "line", "index": index},
+            })
             index += 1
             continue
         if image:

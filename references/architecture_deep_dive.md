@@ -3,6 +3,10 @@
 Full technical reference for modes, risk classes, validation layers, contracts, and guardrails.
 # Thesis DOCX Formatter
 
+## Current defaults and migration
+
+The current dispatcher uses isolated run workspaces and independent Word/LaTeX writers. Structural checks are the default; PDF export, layout analysis and preview generation are opt-in. The following sections retain historical Word engine details, not the current default product workflow. For current output paths, status handling and backend boundaries, read [Backend and Workspace Contract](backend_and_workspace_contract.md).
+
 ## 1. Purpose and scope
 
 This skill upgrades a thesis document into a more compliant and reviewable Word deliverable.

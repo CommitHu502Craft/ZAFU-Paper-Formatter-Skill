@@ -9,7 +9,8 @@ page:
   margin_right_cm: 2.7
   header_cm: 1.8
   footer_cm: 1.85
-  header_text_mode: thesis_title_after_toc
+  header_text_mode: fixed
+  header_text: 浙江农林大学本科生毕业论文（设计）
   header_font_east_asia: 宋体
   header_font_ascii: Times New Roman
   header_size_pt: 9
@@ -216,7 +217,7 @@ styles:
   references_cn:
     type: paragraph
     east_asia_font: 宋体
-    ascii_font: Times New Roman
+    ascii_font: 宋体
     size_pt: 10.5
     indent_chars: 0
     line_spacing_pt: 20
@@ -224,8 +225,8 @@ styles:
     spacing_after_pt: 0
   references_en:
     type: paragraph
-    east_asia_font: Times New Roman
-    ascii_font: Times New Roman
+    east_asia_font: 宋体
+    ascii_font: 宋体
     size_pt: 10.5
     indent_chars: 0
     line_spacing_pt: 20
@@ -296,6 +297,11 @@ references:
     - en
   author_limit_text_cn: 等
   author_limit_text_en: et al.
+  max_named_authors: 3
+  foreign_surname_case: uppercase
+  foreign_given_names: spaced_initials_without_dots
+  same_author_same_year_suffix: alphabetic
+  word_citation_management: false
 review_triggers:
   - mixed_numbering_families
   - ambiguous_heading_vs_body

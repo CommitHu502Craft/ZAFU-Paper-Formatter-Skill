@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -53,16 +54,25 @@ def _issue_text(issue: Any) -> str:
 
 
 def collect(output_dir: Path) -> Dict[str, Any]:
-    manifest = read_json(output_dir / "dispatch_manifest.json")
-    validation = read_json(output_dir / "validation_report.json")
-    review = read_json(output_dir / "review_summary.json")
-    render = read_json(output_dir / "render_validation" / "render_validation_report.json")
+    manifest = read_json(output_dir.parent / "manifest.json") or read_json(output_dir / "dispatch_manifest.json")
+
+    def report_path(key: str, fallback: str) -> Path:
+        value = (manifest.get("artifacts") or {}).get(key)
+        if value:
+            path = Path(value)
+            return path if path.is_absolute() else output_dir.parent / path
+        relocated = output_dir.parent / "reports" / fallback
+        return relocated if relocated.exists() else output_dir / fallback
+
+    validation = read_json(report_path("validationReport", "validation_report.json"))
+    review = read_json(report_path("reviewSummary", "review_summary.json"))
+    render = read_json(report_path("renderValidationReport", "render_validation/render_validation_report.json"))
     if not render:
         render = read_json(output_dir / "render_validation_report.json")
     semantic = read_json(output_dir / "render_validation" / "semantic_pages.json")
-    repair_execution = read_json(output_dir / "repair_execution.json")
-    refinement = read_json(output_dir / "visual_refinement_execution.json")
-    asset_preservation = read_json(output_dir / "asset_preservation.json")
+    repair_execution = read_json(report_path("repairExecution", "repair_execution.json"))
+    refinement = read_json(report_path("visualRefinementExecution", "visual_refinement_execution.json"))
+    asset_preservation = read_json(report_path("assetPreservation", "asset_preservation.json"))
 
     quality_gate = validation.get("qualityGate") or {}
     audit_summary = validation.get("auditSummary") or {}
@@ -80,8 +90,12 @@ def collect(output_dir: Path) -> Dict[str, Any]:
     visual_findings = render.get("visualFindings") or []
 
     manual_checks: List[str] = []
-    if render.get("status") != "ok":
+    if render.get("status") == "skipped":
+        manual_checks.append("默认未导出 PDF、未检查分页布局、未进行视觉审阅；结构检查不代表视觉效果通过。")
+    elif render.get("status") != "ok":
         manual_checks.append("本机没有可用的 PDF 渲染工具,请自行打开 Word 检查整体版面。")
+    else:
+        manual_checks.append("PDF 已生成，但未进行 Agent 视觉审阅。")
     manual_checks.append("在 Word 中打开后按 Ctrl+A 再按 F9(或右键目录→更新域→更新整个目录)刷新目录页码。")
     if any(f.get("type") == "key_region_not_located" for f in visual_findings):
         missing = [f.get("region") for f in visual_findings if f.get("type") == "key_region_not_located"]
@@ -92,7 +106,7 @@ def collect(output_dir: Path) -> Dict[str, Any]:
     if any(f.get("type") == "heading_orphan_at_page_bottom" for f in visual_findings):
         manual_checks.append("有标题落在页面底部,建议在 Word 中检查对应章节的分页。")
     if manifest.get("pendingConfirmationRequests"):
-        manual_checks.append("预检发现需要人工确认的项目(见 debug/preflight_report.json),已按默认策略继续,请核对。")
+        manual_checks.append("预检发现需要人工确认的项目(见 reports 预检报告),已按默认策略继续,请核对。")
     for warning in (asset_preservation.get("warnings") or [])[:3]:
         manual_checks.append(f"内容保留检查:{warning}")
     manual_checks.append("核对封面和诚信承诺书上的姓名、学号、学院、指导教师等个人信息(工具不会自动填写)。")
@@ -132,7 +146,7 @@ def _rel(path_value: Optional[str], base: Path) -> Optional[str]:
     if not path_value:
         return None
     try:
-        return Path(path_value).resolve().relative_to(base.resolve()).as_posix()
+        return Path(os.path.relpath(Path(path_value).resolve(), base.resolve())).as_posix()
     except ValueError:
         return Path(path_value).as_posix()
 

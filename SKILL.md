@@ -1,127 +1,115 @@
 ---
 name: thesis-docx-formatter
-description: 中文本科毕业论文自动排版(默认浙江农林大学 ZAFU 规范)。把 DOCX、Markdown 或 TXT 论文一键排成符合学校要求的 Word 并渲染 PDF 检查:标题层级与目录、页码分节、三线表、图题表题、LaTeX 公式转 Word 公式、摘要关键词、参考文献版式。触发词:毕业论文、论文排版、论文格式、浙江农林大学、Word 排版、DOCX 修复、三线表、Markdown 转论文。不用于普通代码任务或非论文类文档编辑。
+description: 中文本科毕业论文排版，默认浙江农林大学 ZAFU 规范。保守修复 DOCX，或从 Markdown/TXT 生成 Word、LaTeX 工程与 PDF。处理标题目录、页码分节、图表、公式、摘要关键词和参考文献。适用于毕业论文、论文格式、Word 排版、Markdown 转论文、LaTeX 论文输出；不用于普通文档或代码任务。默认只做程序校验，不渲染、不转图片、不进行视觉审阅。
 ---
 
-# 毕业论文一键排版 Skill
+# 毕业论文排版 Skill
 
-把一份毕业论文(DOCX / Markdown / TXT)自动排版为符合学校规范的 Word,渲染 PDF 复查页面效果,最多做一次视觉二次修复后交付。
+## 默认工作流
 
-## 输入与输出
+1. 确认输入路径与交付格式；未指定时使用 Word 后端。
+2. 运行统一入口，只读取必要的配置与引用资料。
+3. 阅读该次运行的 `reports/summary.json`，仅有问题时追查详细报告。
+4. 交付 `deliverables/` 中的文件，说明剩余风险与未执行的检查。
 
-输入:一份 `.docx` / `.md` / `.txt` 论文文件(原文件永不修改)。
+```powershell
+uv run python scripts/thesis_format.py "论文.docx"
+uv run python scripts/thesis_format.py "论文.md" --backend latex
+uv run python scripts/thesis_format.py "论文.md" --backend both
+```
 
-输出(`output/final/`,普通用户只需要看这里):
+从其他项目目录调用时，显式选择 Skill 的依赖环境，例如 `uv run --project "D:/Research/Paper-Formatter-Skill" python "D:/Research/Paper-Formatter-Skill/scripts/thesis_format.py" "论文.md"`。如需使用调用项目的环境，先核对本 Skill `pyproject.toml` 的依赖及版本范围，不用无版本约束的临时依赖替换已声明约束。
 
-| 文件 | 说明 |
-|---|---|
-| `repaired.docx` | 排版完成、仍可编辑的 Word |
-| `repaired.pdf` | 渲染预览(本机有 LibreOffice/Word/WPS 时) |
-| `review_report.html` | 中文检查报告(含人工检查清单) |
-| `contact_sheet.png` | 全文页面缩略图 |
-| `critical_pages/` | 封面、目录、摘要、正文首页、参考文献等关键页高清图 |
+**默认不要看图、导出全文页面、生成视觉修复计划或重新排版。** Word 默认不导出 PDF；LaTeX 的 PDF 是编译产物，不等于视觉审阅。只有用户明确要求时才启用额外检查。
 
-中间 JSON 报告都在 `output/debug/`,普通用户无需查看。
+## 安全与交付边界
 
-## 核心原则
+- 不改写论文内容，不覆盖或移动原输入，不猜测姓名、学号等个人信息。
+- 摘要局部整理、交叉引用转换、标题编号、隐藏属性处理、参考文献拆分和去数字标号属于已允许的排版处理，不逐项请求确认；不进行 AI 润色、补写或章节重排。
+- 原始 DOCX 默认不整篇重建、不替换原有前置部分、不自动新增正文分节。需要这些结构操作时先询问操作者，获准后使用 `--allow-structural-rebuild`。Markdown/TXT 新建文档不受此限制。
+- “重新从头生成”使用当前文本源及明确指定的学校原始模板，不从历史项目 Word 偷取封面、页眉或样式。新建文档的封面来源与哈希记录在 manifest；“封面不改”必须相对于明确的来源判断，不填入猜测的题目或个人信息。
+- DOCX 默认优先保留 Word 原生对象；不静默删除图片、公式、脚注、批注或修订。
+- 警告可以继续交付；Word 质量门的硬失败会阻止候选文件进入交付目录。
+- LaTeX 首版只支持 Markdown/TXT；不承诺复杂 DOCX 无损转换。
+- LaTeX 学校适配为草稿级：可显式传入已确认的学校前置页 PDF 原样插入；不自动重绘封面或填写诚信页，不证明完全符合学校或学院规范。参数见 `references/zafu_latex_adapter.md`。
+- 缺编译环境时交付 TeX 工程，明确报告未编译；编译失败不交付 PDF。
+- 结构检查、布局分析和图片生成均不能声称 Agent 已完成视觉审阅。
 
-1. **不改写正文**——只调整格式,从不改动论文文字内容。
-2. **不猜测个人信息**——姓名、学号、学院、题目等留给用户填写。
-3. **尽量交付**——除非 DOCX 损坏、核心 XML 无法解析或正文严重丢失,警告不阻止生成结果;剩余风险写进报告。
-4. **不覆盖原文件**——所有结果写入输出目录。
-5. **不静默删除**图片、表格、公式、脚注、尾注、批注或修订。
+## 文件保存
 
-## Agent 标准工作流(一次排版 + 最多一次视觉修复)
+默认输出在**输入文件旁**，不在 Skill 安装目录随意写文件：
 
 ```text
-1 自动排版      uv run python scripts/thesis_format.py 论文.docx --profile zafu_2022 --output-dir output
-2 视觉检查      按下方 A/B 两条路线之一执行(先自问:我能不能看图?)
-3 发现问题      编写 visual_refinement_plan.json(白名单动作,见下)
-4 二次修复      uv run python scripts/thesis_format.py 论文.docx --profile zafu_2022 --output-dir output \
-                 --visual-refinement-plan visual_refinement_plan.json
-5 交付          把 output/final/ 的文件路径告诉用户,转述 review_report.html 的人工检查清单
+thesis-output/<输入文件名>/<唯一运行ID>/
+  manifest.json
+  deliverables/
+    <项目名>__<profile>__word.docx
+    <项目名>__<profile>__word.pdf          可选
+    <项目名>__<profile>__latex-source.zip 可选
+    <项目名>__<profile>__latex.pdf        编译成功时
+  reports/summary.json
+  reports/summary.html                   Word 路线
+  work/                                 中间文件与可编辑 TeX 工程
 ```
 
-第一次结果保留为 `output/repaired_pass1.docx`;最终结果始终是 `output/final/repaired.docx`。**最多执行一次视觉二次修复**,不要循环。
+`--output-dir` 指定输出**基目录**，仍为每次运行创建独立子目录。`--project-name` 指定项目名；默认取输入文件名而非正文推断的题目。交付文件路径以该次 `manifest.json` 为准，其产物路径相对运行目录。
 
-### 步骤 2A:有读图能力(多模态)的 Agent
+LaTeX 提示编译器不可用时，可检查已经安装的运行环境（包括 Codex 插件自带的 Tectonic），仅为本次命令设置 PATH 后重试；不要因此自动安装大型 TeX 环境或修改全局环境。
 
-- 查看 `output/final/contact_sheet.png`:有无空白页、异常留白、标题落在页尾、表格图片跨页断裂;
-- 查看 `critical_pages/`:封面是否干净、目录是否只有一个、摘要标签是否加粗、正文页码是否从 1 开始、参考文献版式;
-- 结合 `output/debug/visual_review_manifest.json` 的 `visualFindings` 交叉确认。
+ZAFU LaTeX 直接使用固定版本的外部 `ZafuThesis.cls`，首次联网下载到忽略缓存；源码 ZIP 自带原始 CLS 和来源记录。不将 Word 样式覆盖到 CLS。封面/声明宏只按显式元数据选项调用，双语摘要映射到原始摘要宏；不猜个人信息或伪造签名。缺少依赖时明确报告失败；分享含外部 CLS 的源码前确认授权。
 
-### 步骤 2B:没有读图能力的 Agent(重要:不要尝试读图)
+Word 不做引文管理，不读取 BibTeX、不改写正文文献引用、不重排文献；保留既有条目拆分和去数字标号，统一字体并生成格式提示。LaTeX 可用显式 `.bib` 与 `[@key]` 管理 GB/T 7714-2015 著者—年份引用，中文排序需确认的拼音键。需要相关功能时按需读取以下专用参考。
 
-不具备图像理解能力时,**跳过所有 PNG,不要假装看过图**。改用纯文本路线,检查质量同样有保障——`visualFindings` 本身就来自 PDF 逐页文本和页面几何分析,不依赖看图:
+ZAFU Word 页眉默认使用“浙江农林大学本科生毕业论文（设计）”。保守修复 DOCX 时仅修改可识别正文/摘要节已有的非空页眉，不新增缺失页眉；Markdown/TXT 新建时为明确的正文/摘要节补齐页眉，并创建独立的单一 PAGE 域页脚。目录节使用空页眉；新建目录与摘要分节，前置部分罗马页码接续，正文阿拉伯页码从1开始。共享页眉单独隔离，避免影响封面。目录与正文同节或节用途不明确时保留并提示。`--header-mode thesis-title` 使用论文题目方式，`--header-mode preserve` 保持页眉原样；外部 LaTeX CLS 不受这些选项影响。
 
-1. 读 `output/debug/visual_review_manifest.json`:`visualFindings`(空白页、标题落页尾、贴边、页数暴涨等)和 `unlocatedRegions`;
-2. 读 `output/debug/semantic_pages.json` 的 `pageSummaries` 核对每页首行文字与页面顺序;
-3. 需要修复时可先自动起草计划再人工复核:
-   `uv run python scripts/suggest_visual_refinements.py output/repaired.docx --manifest-json output/debug/visual_review_manifest.json --output visual_refinement_plan.json`
-4. 交付时把 `contact_sheet.png` 和 `critical_pages/` 的路径告诉用户,请用户自己翻看图片确认。
+## 显式选项
 
-两条路线的后续步骤(3–5)完全相同。
-
-### 步骤 3:visual_refinement_plan.json 白名单动作
-
-```json
-{
-  "actions": [
-    {"type": "set_keep_with_next", "target": {"paragraphIndex": 12, "textPrefix": "第三章"}, "reason": "一级标题落在页面末尾", "confidence": 0.92},
-    {"type": "set_table_header_repeat", "target": {"tableIndex": 2}, "headerRows": 1, "reason": "表头跨页不重复"}
-  ]
-}
-```
-
-可用动作:`set_keep_with_next` / `set_keep_lines` / `set_page_break_before` / `clear_page_break_before` / `remove_empty_paragraph` / `remove_duplicate_page_break` / `set_widow_control` / `set_spacing`(beforePt/afterPt) / `center_paragraph` / `scale_image_to_width`(maxWidthCm) / `set_table_header_repeat`(headerRows) / `set_table_rows_no_split` / `center_table`。
-
-段落目标锚点规则:
-- 首选 `paragraphIndex`(document.xml 中第 N 个 `w:p`,0 起)+ `textPrefix` 双重校验;DOCX 源的 `paragraphIndex` 可直接取 `thesis_ir.json` semanticBlocks 里的 `docxParagraphIndex` 字段;
-- `blockId`(block-NNNNN)是 IR 序号不是段落序号,单独使用会被拒绝执行——必须同时给 `textPrefix`;
-- 不匹配的动作自动跳过并记录,绝不盲改。执行器:`scripts/apply_visual_refinements.py`。
-
-## 语义覆盖(识别错误时)
-
-自动识别把标题当正文、把关键词当标题时,不要改正文——写 `semantic_overrides.json` 重新标注语义角色:
-
-```json
-{"overrides": [
-  {"blockId": "block-00142", "role": "heading_2", "headingLevel": 2, "reason": "无样式的二级标题"},
-  {"blockId": "block-00361", "role": "figure_caption", "reason": "位于图片之后且以图3-2开头"}
-]}
-```
-
-`blockId` 来自 `output/debug/thesis_ir.json` 的 `semanticBlocks`。角色支持 `heading_1..6`、`body`、`figure_caption`、`table_caption`、`equation`、`keywords`、`references_heading`、`reference_entry`、`acknowledgements_*`、`appendix_*`、`template_example`(忽略模板示例段)。无效 blockId 只报告不失败。运行时加 `--semantic-overrides semantic_overrides.json`。
-
-## 统一命令与专家参数
-
-```bash
-uv run python scripts/thesis_format.py <输入文件> --profile zafu_2022 --output-dir output \
-  [--semantic-overrides overrides.json] [--visual-refinement-plan plan.json] \
-  [--mode audit-only|conservative-repair|rebuild] [--compliance default|strict-school] [--dry-run]
-```
-
-- Markdown/TXT 输入自动走重建路线(LaTeX 公式 `$...$` 转 Word 原生公式)。
-- 风险等级 C 的 DOCX 也会尽量交付(策略层自动在 preserve_first / template_overlay / hybrid_rebuild 中选择);`audit-only` 仅当用户明确要求或文件无法解析时使用。
-- 缺少 LibreOffice/Word/WPS 时跳过 PDF 渲染,DOCX 照常生成;缺 Poppler(pdftoppm)时跳过页面截图。
-
-## 降级路径
-
-| 情况 | 行为 |
+| 选项 | 行为 |
 |---|---|
-| 无 PDF 渲染后端 | 生成 DOCX + 报告,提示用户自行打开检查 |
-| DOCX 包损坏 / document.xml 无法解析 | 仅输出审计报告并如实告知 |
-| 部分对象无法自动处理(SmartArt、OLE、复杂浮动图) | 保留原样 + 写入人工检查清单 |
-| 分节 / 页码修复失败 | 仍交付文档并在报告中标记 |
+| `--backend word` | 默认 Word 修复或重建 |
+| `--backend latex` | 从公共 IR 生成独立 TeX 工程与 PDF |
+| `--backend both` | 共用一次语义提取，分别生成两种格式 |
+| `--export-pdf` | Word 导出 PDF，不自动生成 PNG |
+| `--allow-structural-rebuild` | 操作者明确批准 DOCX 整篇重建或模板前置部分替换后使用 |
+| `--header-mode fixed\|thesis-title\|preserve` | Word 页眉固定文字、论文题目或保持原样 |
+| `--header-text "文字"` | 自定义固定页眉，隐含 fixed 模式 |
+| `--latin-font "Times New Roman"` | 显式覆盖 Word 的西文字体；不改受保护封面及 LaTeX 字体，中文字体和字号仍依学校规则 |
+| `--check structural` | 默认结构、规则及内容/资产检查 |
+| `--check layout` | 增加 PDF 文本与几何分析，不生成页面图片 |
+| `--check visual` | 显式生成预览图片；不自动开展 Agent 审阅 |
+| `--no-compile` | 仅生成 LaTeX 工程，不调用编译器 |
+| `--latex-engine auto\|xelatex\|tectonic` | auto 优先 PATH 上的 XeLaTeX，再尝试 Tectonic；不自动安装 |
+| `--latex-metadata metadata.json` | 仅 LaTeX 的封面字段、声明开关及摘要覆盖 |
+| `--latex-bibliography references.bib` | 仅 LaTeX 的显式著者—年份引文管理；Word 不读取 |
+| `--compile-timeout 120` | 单次编译超时秒数，范围 1–600 |
+| `--profile zafu_2022` | 学校规则适配 |
+| `--compliance strict-school` | Word 严格规范覆盖；不将 LaTeX 草稿升级为合规认证 |
+| `--dry-run` | 创建独立运行记录，仅记录公共阶段命令，不生成文档 |
 
-## References 导航(按需阅读,不要默认全读)
+Word 专家模式仍兼容 `--mode audit-only|conservative-repair|rebuild`。LaTeX 与 Word 页码、字体回退和布局可能不同，不承诺逐页一致。
 
-- `references/thesis_ir_contract.md` — ThesisIR 契约与 semanticBlocks 结构
-- `references/plan_schema.md` — repair plan schema
-- `references/ooxml_pitfalls.md` — OOXML 修改陷阱(改 XML 前必读)
-- `references/ooxml_audit_guide.md` — 审计字段说明
-- `references/numbering_systems.md` — 中文论文编号体系
-- `references/template_rule_coordination.md` — 模板与规则合并
-- `references/hybrid_rebuild_contract.md` — 混合重建约束
-- `references/architecture_deep_dive.md` — 完整架构说明(原 SKILL.md)
-- `references/zafu_2022_rules.yaml` — ZAFU 规范的机器可读规则
+## 语义识别纠错
+
+需要纠错时按 `work/thesis_ir.json` 中的稳定 blockId 编写覆盖文件：
+
+```json
+{"overrides": [{"blockId": "block-00042", "role": "heading_2", "reason": "这是二级标题"}]}
+```
+
+通过 `--semantic-overrides overrides.json` 应用。原始 DOCX 保守修复读取同一 IR 中的显式纠正，支持正文、标题、图表题注等可直接映射的角色；保持原始 OOXML 对象。找不到 blockId 时跳过并报告，不按数字猜测段落；不支持的角色或受保护前置区域同样保留。纠正文件仅用于对应的当前输入，不应跨修改后的文档复用。
+
+先看 `reports/summary.json` 的 `semanticCorrections`、`deferredStructuralChanges` 和 `formattingReview`。不能把部分未处理的问题说成已修复；不增加逐块内容比对或额外视觉审阅。
+
+Word 更新目录会重新生成结果文字，应在更新后核对目录实际字体及页码。仅检查样式或结构通过，不代表 Word 已完成目录更新、实际分页核对或视觉审阅。需要 Word 自动化时区分执行失败与关闭阶段 RPC 失败：后者只有在产物和关键结果确已核验后才可记录为清理警告；不要盲目重跑或保存文档，Word 保存可能重写封面 XML 和图片。
+
+## 按需参考
+
+- `references/backend_and_workspace_contract.md`：双后端、目录、状态和迁移规则。
+- `references/zafu_latex_adapter.md`：外部 CLS 元数据、原始前置页宏和显式 BibTeX 用法。
+- `references/zafu_reference_format.md`：Word 参考文献书写规则及不做引文管理的边界。
+- `references/thesis_ir_contract.md`：公共 IR 与来源锚点。
+- `references/optional_visual_review.md`：仅用户要求时读取的视觉审阅与修复。
+- `references/ooxml_pitfalls.md`：修改 OOXML 前必读。
+- `references/plan_schema.md`：Word 修复计划契约。
+- `references/hybrid_rebuild_contract.md`：Word 内部混合重建，不是双后端。
+- `references/architecture_deep_dive.md`：已有 Word 引擎实现细节；当前默认以本 Skill 和新契约为准。

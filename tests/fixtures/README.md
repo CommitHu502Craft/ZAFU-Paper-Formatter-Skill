@@ -157,7 +157,7 @@ Future PDF-preview-enabled example:
 
 Current runner behavior:
 - executes `scripts/thesis_format.py`
-- reads `dispatch_manifest.json`
+- reads each isolated run's `manifest.json` and resolves its relative artifact paths
 - checks dispatcher and preflight decision fields
 - can assert `strategy_selection.json` fields such as chosen strategy and strategy reasons
 - can assert `thesis_ir.json` fields such as strategy candidate, overall confidence, reference normalization signals, and phase-2 structure fields like `acknowledgements / appendix / captionBlocks / attachableAssetCandidates / assetAnchorAmbiguities`
@@ -194,6 +194,8 @@ Current runner behavior:
 - does not yet compare full repaired DOCX content or visual render output
 
 Optional render-preview group:
+
+Word numeric-reference fixtures now require the non-mutating `referenceFormatReport` and explicitly reject a default `citationConversionPlan`. Word retains original body citations and does not manage bibliography records. Legacy standalone `citation_conversion_plan.py` remains an expert tool, outside the default pipeline. The runner supports `requiresReferenceFormatReport` and `referenceFormat.*` assertions.
 - `render_preview_enabled_normal_template_docx/expected.json` is a capability-gated fixture template for environments that have both `soffice` and `pdftoppm`
 - default runs will skip it automatically when those commands are unavailable
 - to run only that group:

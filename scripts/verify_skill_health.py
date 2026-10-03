@@ -48,7 +48,7 @@ def main():
 
     # Visual review loop contracts
     print()
-    print("1b. Visual review loop:")
+    print("1b. Optional visual review extension:")
     render_script = skill_dir / "scripts" / "render_validate_docx.py"
     all_ok &= check_script_content(render_script, "locate_semantic_pages", "Semantic page location")
     all_ok &= check_script_content(render_script, "build_contact_sheets", "Contact sheet generation")
@@ -86,6 +86,12 @@ def main():
     all_ok &= check_file(skill_dir / "scripts" / "thesis_format.py", "Unified dispatcher")
     all_ok &= check_file(skill_dir / "scripts" / "validate_thesis_ir.py", "ThesisIR validator")
     all_ok &= check_file(skill_dir / "profiles" / "zafu_2022" / "rules.yaml", "Default profile rules")
+    all_ok &= check_file(skill_dir / "scripts" / "formatter_core" / "workspace.py", "Isolated workspace and artifact registry")
+    all_ok &= check_file(skill_dir / "scripts" / "formatter_core" / "checks.py", "Opt-in check policy")
+    all_ok &= check_file(skill_dir / "scripts" / "formatter_backends" / "word.py", "Word backend")
+    all_ok &= check_file(skill_dir / "scripts" / "formatter_backends" / "latex.py", "LaTeX backend")
+    all_ok &= check_file(skill_dir / "assets" / "latex" / "main.tex", "Original LaTeX template")
+    all_ok &= check_file(skill_dir / "references" / "backend_and_workspace_contract.md", "Backend/workspace contract")
 
     # Summary
     print()

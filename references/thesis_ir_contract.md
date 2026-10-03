@@ -81,6 +81,12 @@ Minimum fields:
 - `confidence`
 - `sourceBlocks`
 
+`titleEn` is optional and only represents an explicitly supplied English title;
+the extractor must not translate one or use English abstract prose as a title.
+For Markdown, explicit heading levels take precedence over numbering guesses.
+Numbered bibliography lines are separate reference blocks even without blank
+lines; body enumerations are not promoted to headings merely by their prefixes.
+
 ### `headingTree`
 
 Must represent recovered headings, not just raw lines.

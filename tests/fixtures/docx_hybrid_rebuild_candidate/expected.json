@@ -54,7 +54,7 @@
       "skippedByPolicyCount": 2
     },
     "renderValidation": {
-      "status": "unavailable"
+      "status": "skipped"
     },
     "previewExport": {
       "available": false,

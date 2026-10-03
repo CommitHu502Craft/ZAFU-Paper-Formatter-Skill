@@ -15,3 +15,23 @@ applicable institutional requirements before redistribution or commercial use.
 This is an independent community project. It is not an official project of,
 nor is it endorsed or maintained by, Zhejiang A&F University.
 
+The optional LaTeX backend downloads the unmodified ZafuThesis.cls from
+Stolorzs/ZafuTemplatePublic at commit
+81c0d127d485aaaf00c5cbccc5d0d29affd446f2. This external class is not vendored
+in this repository and is not covered by its Apache License. An upstream
+redistribution license has not been confirmed. Generated source archives
+include the class for compilation and UPSTREAM.json for provenance; users
+must confirm permission before redistributing those archives.
+
+Optional cover/name images from the same pinned ZafuTemplatePublic revision
+are downloaded only when cover or statement pages are explicitly requested.
+Their hashes and origins are recorded in UPSTREAM.json; they share the same
+unconfirmed upstream redistribution boundary as the class.
+
+The optional BibTeX adapter downloads GB/T 7714 style v2.1.4 from
+zepinglee/gbt7714-bibtex-style at commit
+f7e42092047bebfdec0d2dedf46b61eab2195fb1 under LPPL 1.3c or later.
+Generated projects include the original BST, source, license and
+UPSTREAM-BIBTEX.json, plus a separately named school variant with its exact
+configuration changes recorded. These external files are not Apache-2.0
+materials and are not vendored in this repository.

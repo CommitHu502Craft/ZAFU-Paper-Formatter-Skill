@@ -1,0 +1,17 @@
+template: assets/latex/zafu-external.tex
+external_class: zafu
+engine: auto
+compliance: draft
+inline_code_font: roman
+break_inline_code: true
+emergency_stretch_em: 2
+table_alignment: center
+wide_table_columns: 8
+image_width_fraction: 1.0
+image_height_fraction: 0.82
+limitations:
+  - Uses the original pinned ZafuThesis.cls; Word profile geometry and font overrides are not applied to this class.
+  - Requires upstream fonts (Times New Roman and 宋体) and the class's TeX packages; missing dependencies cause an explicit compile failure.
+  - Cover and integrity pages are included verbatim only when an explicit frontMatterPdf is supplied; no personal information is inferred.
+  - Department-specific requirements and exact Word pagination are not certified.
+  - Without explicit BibTeX input, references are preserved as supplied text; bibliographic metadata and citation keys are not inferred.

@@ -67,7 +67,7 @@
       "attachmentSkippedCount": 0
     },
     "renderValidation": {
-      "status": "unavailable"
+      "status": "skipped"
     },
     "previewExport": {
       "available": false,

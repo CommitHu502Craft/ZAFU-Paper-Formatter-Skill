@@ -15,7 +15,7 @@ KEYWORDS_SPLIT_RE = re.compile(r"[:：]\s*")
 ABSTRACT_HEADING_SET = {"摘要", "摘  要", "中文摘要"}
 REFERENCES_HEADING_RE = re.compile(r"^\s*(参考文献|References)(?:[（(].*?[)）])?\s*$")
 ACKNOWLEDGEMENTS_HEADING_SET = {"致谢", "致 谢", "Acknowledgements", "Acknowledgment"}
-NUMERIC_REFERENCE_LABEL_RE = re.compile(r"^\[\s*(\d+)\s*\]\s*")
+NUMERIC_REFERENCE_LABEL_RE = re.compile(r"^(?:\[\s*(\d+)\s*\]|\d{1,3}[.)、])\s*")
 NUMERIC_CITATION_RE = re.compile(r"\[\s*\d+(?:\s*[-,，]\s*\d+)*\s*\]")
 SCIENCE_DECIMAL_LEVEL1_RE = re.compile(r"^\d+\s+")
 CAPTION_LABEL_RE = re.compile(
@@ -32,47 +32,56 @@ def normalize_text(value: Optional[str]) -> str:
 def extract_front_matter_from_text(evidence: Dict[str, Any]) -> Dict[str, Any]:
     lines = evidence.get("lineEvidence") or []
     title = None
-    abstract_cn = None
-    keywords_cn = None
+    title_en = None
+    abstracts: Dict[str, List[str]] = {"cn": [], "en": []}
+    keywords: Dict[str, Optional[str]] = {"cn": None, "en": None}
     source_blocks: List[int] = []
-    in_abstract_cn = False
-    abstract_parts: List[str] = []
-    for item in lines[:80]:
+    active_language = None
+    seen_abstract = False
+    for ordinal, item in enumerate(lines):
         text = normalize_text(item.get("normalizedText") or item.get("text"))
         if not text:
             continue
-        if title is None and not any(item.get("candidateLabels", {}).values()):
+        text = re.sub(r"^#{1,6}\s+", "", text).strip()
+        abstract_match = re.match(r"^(摘\s*要|中文摘要|Abstract)\s*(?:[:：]\s*(.*))?$", text, re.I)
+        keyword_match = re.match(r"^(关键词|Key\s*words?)\s*[:：]\s*(.*)$", text, re.I)
+        if abstract_match:
+            active_language = "en" if abstract_match.group(1).lower() == "abstract" else "cn"
+            seen_abstract = True
+            if abstract_match.group(2):
+                abstracts[active_language].append(abstract_match.group(2))
+            source_blocks.append(int(item["index"]))
+            continue
+        if keyword_match:
+            language = "cn" if keyword_match.group(1) == "关键词" else "en"
+            keywords[language] = keyword_match.group(2).strip()
+            source_blocks.append(int(item["index"]))
+            active_language = None
+            continue
+        # An explicitly supplied English title directly before ABSTRACT is
+        # recoverable; do not invent a translation or infer one from its body.
+        if seen_abstract and keywords["cn"] and active_language is None and not re.search(r"[\u4e00-\u9fff]", text):
+            following = next((normalize_text(candidate.get("normalizedText") or candidate.get("text"))
+                              for candidate in lines[ordinal + 1:]
+                              if normalize_text(candidate.get("normalizedText") or candidate.get("text"))), "")
+            if re.fullmatch(r"(?:#{1,6}\s+)?Abstract\s*[:：]?", following, re.I):
+                title_en = text
+                source_blocks.append(int(item["index"]))
+                continue
+        if active_language and not item.get("candidateHeading"):
+            abstracts[active_language].append(text)
+            source_blocks.append(int(item["index"]))
+            continue
+        if item.get("candidateHeading") or REFERENCES_HEADING_RE.match(text):
+            active_language = None
+            if seen_abstract:
+                break
+        if title is None and not seen_abstract and not any(item.get("candidateLabels", {}).values()):
             title = text
             source_blocks.append(int(item.get("index")))
-            continue
-        if item.get("candidateLabels", {}).get("abstract") and abstract_cn is None:
-            label, _, content = text.partition("：")
-            if not content:
-                label, _, content = text.partition(":")
-            if text in ABSTRACT_HEADING_SET or (label == text and not content):
-                in_abstract_cn = True
-                source_blocks.append(int(item.get("index")))
-                continue
-            abstract_cn = normalize_text(content or label)
-            source_blocks.append(int(item.get("index")))
-            continue
-        if item.get("candidateLabels", {}).get("keywords") and keywords_cn is None:
-            parts = KEYWORDS_SPLIT_RE.split(text, maxsplit=1)
-            keywords_cn = normalize_text(parts[1] if len(parts) > 1 else text)
-            source_blocks.append(int(item.get("index")))
-            in_abstract_cn = False
-            continue
-        if REFERENCES_HEADING_RE.match(text) or item.get("candidateHeading"):
-            in_abstract_cn = False
-        if in_abstract_cn and keywords_cn is None and not item.get("candidateHeading"):
-            abstract_parts.append(text)
-            source_blocks.append(int(item.get("index")))
-            continue
-        if abstract_cn is not None and keywords_cn is None and not item.get("candidateHeading"):
-            abstract_cn = normalize_text(f"{abstract_cn} {text}")
-            source_blocks.append(int(item.get("index")))
-    if abstract_parts:
-        abstract_cn = normalize_text(" ".join(abstract_parts))
+    abstract_cn = normalize_text(" ".join(abstracts["cn"])) or None
+    abstract_en = normalize_text(" ".join(abstracts["en"])) or None
+    keywords_cn = keywords["cn"]
     confidence = 0.45
     if abstract_cn:
         confidence += 0.25
@@ -82,10 +91,11 @@ def extract_front_matter_from_text(evidence: Dict[str, Any]) -> Dict[str, Any]:
         confidence += 0.1
     return {
         "title": title,
+        "titleEn": title_en,
         "abstractCn": abstract_cn,
-        "abstractEn": None,
+        "abstractEn": abstract_en,
         "keywordsCn": keywords_cn,
-        "keywordsEn": None,
+        "keywordsEn": keywords["en"],
         "sourceBlocks": source_blocks,
         "confidence": round(min(confidence, 1.0), 2),
     }
@@ -395,10 +405,13 @@ def extract_references_section(evidence: Dict[str, Any]) -> Dict[str, Any]:
         text = normalize_text(item.get("text"))
         if not text:
             continue
-        if heading_index is None and REFERENCES_HEADING_RE.match(text):
+        heading_text = re.sub(r"^#{1,6}\s+", "", text).strip()
+        if heading_index is None and REFERENCES_HEADING_RE.match(heading_text):
             heading_index = index
             continue
         if heading_index is not None and index is not None and int(index) > int(heading_index):
+            if heading_text in ACKNOWLEDGEMENTS_HEADING_SET or heading_text.startswith("附录") or re.match(r"^#{1,6}\s+", text):
+                break
             entries.append({"kind": "reference_entry", "sourceIndex": index, "text": text})
     return {
         "heading": "参考文献" if heading_index is not None else None,
@@ -863,7 +876,9 @@ def build_semantic_blocks(
 
         if source_index in front_indexes:
             role, confidence = "front_matter", float(front_matter.get("confidence") or 0.7)
-        elif source_index in heading_map:
+        elif source_index in reference_entries:
+            kind, role, confidence = "reference", "reference_entry", 0.92
+        elif source_index in heading_map and evidence.get("sourceFormat") != "markdown":
             heading = heading_map[source_index]
             kind = "heading"
             text = normalize_text(heading.get("text") or text)
@@ -884,8 +899,6 @@ def build_semantic_blocks(
         elif source_index == reference_heading:
             kind, role, confidence = "heading", "references_heading", 0.95
             level = 1
-        elif source_index in reference_entries:
-            kind, role, confidence = "reference", "reference_entry", 0.92
         elif source_index == acknowledgement_heading:
             kind, role, confidence = "heading", "acknowledgements_heading", 0.95
             level = 1
@@ -1089,12 +1102,6 @@ def apply_semantic_overrides(ir: Dict[str, Any], overrides_payload: Dict[str, An
 
     blocks = ir.get("semanticBlocks") or []
     by_id = {block.get("id"): block for block in blocks}
-    by_source_index: Dict[int, Dict[str, Any]] = {}
-    for block in blocks:
-        anchor = block.get("sourceAnchor") or {}
-        index = anchor.get("index")
-        if index is not None:
-            by_source_index.setdefault(int(index), block)
 
     applied: List[Dict[str, Any]] = []
     rejected: List[Dict[str, Any]] = []
@@ -1105,10 +1112,6 @@ def apply_semantic_overrides(ir: Dict[str, Any], overrides_payload: Dict[str, An
         block_id = str(override.get("blockId") or "")
         role = str(override.get("role") or "")
         block = by_id.get(block_id)
-        if block is None:
-            match = re.search(r"(\d+)", block_id)
-            if match:
-                block = by_source_index.get(int(match.group(1)))
         if block is None:
             rejected.append({"blockId": block_id, "reason": "block_id_not_found"})
             continue
@@ -1126,6 +1129,9 @@ def apply_semantic_overrides(ir: Dict[str, Any], overrides_payload: Dict[str, An
             block["level"] = int(level) if isinstance(level, int) else int(role.split("_")[1])
         elif role in role_to_kind:
             block["kind"] = role_to_kind[role]
+        else:
+            block["kind"] = "paragraph"
+            block["level"] = None
         applied.append({"blockId": block.get("id"), "previousRole": previous_role, "newRole": role})
 
     ir["semanticOverrides"] = {
@@ -1152,8 +1158,7 @@ def apply_semantic_overrides(ir: Dict[str, Any], overrides_payload: Dict[str, An
                         "confidence": block.get("confidence"),
                     }
                 )
-        if heading_tree:
-            ir["headingTree"] = heading_tree
+        ir["headingTree"] = heading_tree
     return ir
 
 

@@ -487,6 +487,7 @@ def check_strategy_and_ir(
     thesis_ir_path, thesis_ir = load_optional_json(artifacts.get("thesisIr"))
     preflight_path, preflight_report = load_optional_json(artifacts.get("preflightReport"))
     citation_plan_path, citation_plan = load_optional_json(artifacts.get("citationConversionPlan"))
+    reference_format_path, reference_format = load_optional_json(artifacts.get("referenceFormatReport"))
     hybrid_attachment_report_path, hybrid_attachment_report = load_optional_json(artifacts.get("hybridAttachmentReport"))
     hybrid_rebuild_report_path, hybrid_rebuild_report = load_optional_json(artifacts.get("hybridRebuildReport"))
 
@@ -611,6 +612,14 @@ def check_strategy_and_ir(
                     mismatches.append(f"preflightBlockedAutoRepairs missing expected item {item!r}")
 
     requires_citation_plan = expected.get("requiresCitationConversionPlan")
+    if "requiresReferenceFormatReport" in expected:
+        assert_equal(mismatches, "requiresReferenceFormatReport", reference_format_path is not None and reference_format_path.exists(), bool(expected["requiresReferenceFormatReport"]))
+    if isinstance(expected.get("referenceFormat"), dict):
+        if reference_format is None:
+            mismatches.append("referenceFormat: report missing")
+        else:
+            for key, value in expected["referenceFormat"].items():
+                assert_equal(mismatches, f"referenceFormat.{key}", reference_format.get(key), value)
     if requires_citation_plan is not None:
         assert_equal(
             mismatches,
@@ -716,9 +725,15 @@ def run_fixture(fixture_dir: Path, profile: str, output_dir: Path, expected_spec
         "--output-dir",
         str(fixture_output_dir),
     ]
-    completed = subprocess.run(command, cwd=str(ROOT), check=False, capture_output=True, text=True)
-    manifest_path = fixture_output_dir / "dispatch_manifest.json"
+    check_level = str(expected_spec.get("check") or ("visual" if "render_preview_enabled" in normalize_tags(expected_spec.get("tags")) else "structural"))
+    command.extend(["--check", check_level])
+    completed = subprocess.run(command, cwd=str(ROOT), check=False, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    manifest_candidates = sorted(fixture_output_dir.glob("*/*/manifest.json"), key=lambda path: path.stat().st_mtime_ns)
+    manifest_path = manifest_candidates[-1] if manifest_candidates else fixture_output_dir / "manifest.json"
     manifest = read_json(manifest_path) if manifest_path.exists() else {}
+    for key, value in (manifest.get("artifacts") or {}).items():
+        if isinstance(value, str) and not Path(value).is_absolute():
+            manifest["artifacts"][key] = str(manifest_path.parent / value)
     mismatches: List[str] = []
     expected = expected_spec.get("expected") or {}
     if not isinstance(expected, dict):
@@ -837,7 +852,7 @@ def main() -> None:
         "failedCount": executed_count - passed_count,
         "fixtures": results,
         "notes": [
-            "Fixtures with expected.json are executed through thesis_format.py and checked against dispatch_manifest.json.",
+            "Fixtures execute through thesis_format.py and resolve relative artifacts from each isolated run's manifest.json.",
             "Repair-mode fixtures can now assert repairPlan, repairExecution, repairedDocx, and repairedPdf artifact presence.",
             "The runner now also validates the presence and minimal schema of validation_report.json, render_validation_report.json, and preview_manifest.json when those artifacts are declared.",
             "Fixtures may be skipped when include-tag filters do not match or requiredCommands are unavailable in the current environment.",
@@ -857,6 +872,8 @@ def main() -> None:
             ensure_ascii=False,
         )
     )
+    if payload["failedCount"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
