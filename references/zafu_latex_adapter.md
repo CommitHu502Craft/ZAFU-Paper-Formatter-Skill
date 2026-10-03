@@ -7,7 +7,7 @@ LaTeX 排版来源：[Stolorzs/ZafuTemplatePublic](https://github.com/Stolorzs/Z
 ## 封面与前置页
 
 ```powershell
-uv run python scripts/thesis_format.py '论文.md' --backend latex --latex-metadata 'metadata.json'
+python scripts/thesis_format.py '论文.md' --backend latex --latex-metadata 'metadata.json'
 ```
 
 `metadata.json` 是显式配置，不从姓名、学号或文件名猜造个人信息：
@@ -42,7 +42,7 @@ uv run python scripts/thesis_format.py '论文.md' --backend latex --latex-metad
 ## 引文管理（仅 LaTeX）
 
 ```powershell
-uv run python scripts/thesis_format.py '论文.md' --backend latex --latex-metadata 'metadata.json' --latex-bibliography 'references.bib'
+python scripts/thesis_format.py '论文.md' --backend latex --latex-metadata 'metadata.json' --latex-bibliography 'references.bib'
 ```
 
 显式引用标记：`[@chen1989]`、`[@chen1989; @reich2006]`，转换为 `\citep{...}`。已有作者—年份文字或 `[1]` 不会被猜测为某个键。缺少 `.bib` 或键不存在时阻止编译，代码示例中的标记不执行。

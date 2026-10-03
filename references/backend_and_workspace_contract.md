@@ -23,6 +23,10 @@ Modules:
 - `formatter_backends/latex.py`: subset capability checks, TeX writer, asset isolation and bounded compilation.
 - `thesis_format.py`: profile selection and orchestration; existing script CLIs remain usable.
 
+## Python runtime
+
+Python 3.11+ with the declared dependencies is sufficient to run the dispatcher. Users may install them with `python -m pip install -r requirements.txt` and invoke `python scripts/thesis_format.py ...`; uv is not required at runtime. The dispatcher checks for missing declared modules before importing its backends and offers an installation command using the same interpreter. It never installs dependencies automatically. Subprocesses use `sys.executable`, including when invoked from another working directory. Developers may retain `uv.lock` and use uv for reproducible development environments.
+
 ## Checks
 
 `structural` is the default. No Word PDF converter, text geometry extraction, page images or Agent visual review is invoked implicitly.

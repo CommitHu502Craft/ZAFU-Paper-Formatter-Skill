@@ -63,17 +63,17 @@ LaTeX 可从 Markdown/TXT 生成独立工程与 PDF，支持图表、常用公�
 
 ### 本地环境与命令
 
-需要 **Python 3.11 或更高版本**和 **uv**。在仓库根目录执行：
+需要 **Python 3.11 或更高版本**，**不用安装 uv**。首次使用需安装项目依赖，可以让 AI 助手引导完成。在仓库根目录执行：
 
 ```powershell
-uv sync --locked
-uv run --no-sync python scripts/thesis_format.py --help
-uv run --no-sync python scripts/thesis_format.py "D:/毕业论文/论文.docx"
-uv run --no-sync python scripts/thesis_format.py "D:/毕业论文/论文.md" --backend latex
-uv run --no-sync python scripts/thesis_format.py "D:/毕业论文/论文.md" --backend both
+python -m pip install -r requirements.txt
+python scripts/thesis_format.py --help
+python scripts/thesis_format.py "D:/毕业论文/论文.docx"
+python scripts/thesis_format.py "D:/毕业论文/论文.md" --backend latex
+python scripts/thesis_format.py "D:/毕业论文/论文.md" --backend both
 ```
 
-`pyproject.toml` 与 `uv.lock` 是推荐的依赖入口；`requirements.txt` 供其他环境使用，但不是完全锁定的替代方案。从别的目录调用时，使用 `uv run --project "Skill目录" --no-sync python "Skill目录/scripts/thesis_format.py" "论文路径"`，避免误用另一个项目的 Python 环境。
+已安装过依赖的环境可以直接运行，不必每次重新安装。如果电脑上有多个 Python 环境，请让助手确认使用的是已安装项目依赖的那个环境。普通 Python 安装方式与 uv 开发方式都受支持。
 
 按所需功能配置额外工具：
 
@@ -140,6 +140,8 @@ Word 默认使用“浙江农林大学本科生毕业论文（设计）”。修
 仓库保留源码、规则、锁文件及必要的模板/测试资源；不提交个人论文、排版成品、虚拟环境、缓存或外部模板下载目录。`.gitignore` 按生成目录忽略成品，不全局屏蔽 DOCX/PDF 等可能属于有效资源的格式。自定义输出到其他目录时，需自行补充忽略规则并检查 `git status`。
 
 本地检查入口（不修改测试期望）：
+
+开发者可继续使用 uv 管理锁定环境；这不会增加普通用户的安装要求。下面是可选的开发检查命令：
 
 ```powershell
 uv run --no-sync python scripts/verify_skill_health.py

@@ -13,12 +13,14 @@ description: 中文本科毕业论文排版，默认浙江农林大学 ZAFU 规�
 4. 交付 `deliverables/` 中的文件，说明剩余风险与未执行的检查。
 
 ```powershell
-uv run python scripts/thesis_format.py "论文.docx"
-uv run python scripts/thesis_format.py "论文.md" --backend latex
-uv run python scripts/thesis_format.py "论文.md" --backend both
+python scripts/thesis_format.py "论文.docx"
+python scripts/thesis_format.py "论文.md" --backend latex
+python scripts/thesis_format.py "论文.md" --backend both
 ```
 
-从其他项目目录调用时，显式选择 Skill 的依赖环境，例如 `uv run --project "D:/Research/Paper-Formatter-Skill" python "D:/Research/Paper-Formatter-Skill/scripts/thesis_format.py" "论文.md"`。如需使用调用项目的环境，先核对本 Skill `pyproject.toml` 的依赖及版本范围，不用无版本约束的临时依赖替换已声明约束。
+需要 Python 3.11+ 和 `requirements.txt` 中的依赖，**不要求安装 uv**。优先使用已具备依赖的 Python 环境；缺依赖时说明原因并提供 `python -m pip install -r requirements.txt`，不要未经许可安装软件、修改全局环境或强制引入 uv。
+
+从其他项目目录调用时，使用 Skill 脚本的绝对路径，并明确选择已安装依赖的 Python 解释器。安装依赖也使用该解释器的 `-m pip` 与 `requirements.txt` 绝对路径，避免安装到另一个环境。子任务沿用同一解释器。开发者可以继续使用 `uv sync --locked` 和 `uv run --no-sync python ...`；uv 是可选开发工具，不是用户运行前提。
 
 **默认不要看图、导出全文页面、生成视觉修复计划或重新排版。** Word 默认不导出 PDF；LaTeX 的 PDF 是编译产物，不等于视觉审阅。只有用户明确要求时才启用额外检查。
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -12,6 +13,24 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+if __name__ == "__main__":
+    if sys.version_info < (3, 11):
+        raise SystemExit("Python 3.11 or newer is required; uv is optional.")
+    required_modules = {
+        "bibtexparser": "bibtexparser", "latex2mathml": "latex2mathml", "lxml": "lxml",
+        "PIL": "pillow", "pypdf": "pypdf", "docx": "python-docx", "yaml": "PyYAML",
+    }
+    missing_dependencies = [package for module, package in required_modules.items() if importlib.util.find_spec(module) is None]
+    if missing_dependencies:
+        requirements_path = Path(__file__).resolve().parents[1] / "requirements.txt"
+        install_command = subprocess.list2cmdline([sys.executable, "-m", "pip", "install", "-r", str(requirements_path)])
+        if sys.platform == "win32":
+            install_command = "& " + install_command
+        raise SystemExit(
+            "Missing Python dependencies: " + ", ".join(missing_dependencies)
+            + "\nInstall them in this Python environment (uv is not required):\n" + install_command
+        )
 
 import yaml
 from formatter_core.checks import CheckPolicy
