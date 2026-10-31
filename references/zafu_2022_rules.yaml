@@ -60,6 +60,16 @@ styles:
     line_spacing_pt: 20
     spacing_before_pt: 0
     spacing_after_pt: 0
+  caption:
+    type: paragraph
+    east_asia_font: 宋体
+    ascii_font: Times New Roman
+    size_pt: 9
+    align: center
+    indent_chars: 0
+    line_spacing_pt: 20
+    spacing_before_pt: 0
+    spacing_after_pt: 0
   heading1:
     type: paragraph
     keep_with_next: true
@@ -164,7 +174,7 @@ styles:
     ascii_font: Times New Roman
     size_pt: 10.5
     indent_chars: 0
-    line_spacing_multiple: 2.41
+    line_spacing_pt: 20
     spacing_before_pt: 0
     spacing_after_pt: 0
   abstract_label_en:
@@ -217,7 +227,7 @@ styles:
   references_cn:
     type: paragraph
     east_asia_font: 宋体
-    ascii_font: 宋体
+    ascii_font: Times New Roman
     size_pt: 10.5
     indent_chars: 0
     line_spacing_pt: 20
@@ -226,7 +236,7 @@ styles:
   references_en:
     type: paragraph
     east_asia_font: 宋体
-    ascii_font: 宋体
+    ascii_font: Times New Roman
     size_pt: 10.5
     indent_chars: 0
     line_spacing_pt: 20

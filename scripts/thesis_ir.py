@@ -116,7 +116,7 @@ def extract_front_matter_from_docx(evidence: Dict[str, Any]) -> Dict[str, Any]:
     abstract_cn = None
     keywords_cn = None
     source_blocks: List[int] = []
-    for item in paragraphs[:120]:
+    for offset, item in enumerate(paragraphs[:120]):
         text = normalize_text(item.get("text"))
         if not text:
             continue
@@ -128,6 +128,16 @@ def extract_front_matter_from_docx(evidence: Dict[str, Any]) -> Dict[str, Any]:
             label, _, content = text.partition("：")
             if not content:
                 label, _, content = text.partition(":")
+            if not content:
+                # A bare "摘要" line owns the abstract paragraph that follows.
+                content = next(
+                    (
+                        normalize_text(candidate.get("text"))
+                        for candidate in paragraphs[offset + 1:offset + 4]
+                        if normalize_text(candidate.get("text"))
+                    ),
+                    "",
+                )
             abstract_cn = normalize_text(content or label)
             source_blocks.append(int(item.get("index")))
             continue
@@ -164,6 +174,17 @@ def extract_front_matter_from_docx(evidence: Dict[str, Any]) -> Dict[str, Any]:
                 abstracts[language] = payload
             else:
                 keywords[language] = payload
+            recovered_indexes.append(int(item["index"]))
+    # Bare "摘要"/"Abstract" label lines keep their content in the following
+    # paragraph, which carries the abstract role but no label prefix.
+    for item in paragraphs[:120]:
+        role = item.get("roleName") or (item.get("role") or {}).get("role")
+        if role not in {"abstract_paragraph_cn", "abstract_paragraph_en"}:
+            continue
+        language = "en" if role.endswith("en") else "cn"
+        text = normalize_text(item.get("text"))
+        if text and (not abstracts[language] or abstracts[language] in {"摘要", "中文摘要", "Abstract"}):
+            abstracts[language] = text
             recovered_indexes.append(int(item["index"]))
     return {
         "title": titles["cn"] or title,

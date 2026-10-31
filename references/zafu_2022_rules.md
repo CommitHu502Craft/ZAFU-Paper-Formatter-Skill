@@ -72,7 +72,7 @@ The current Zhejiang A&F repair preset treats:
 - Level 4+ heading: Songti size 5, two-character indent, 3 pt before and after
 
 ## Figures, tables, equations
-- Table title: keep adjacent to the table block and prefer the line below the table in the current repair preset
+- Table title: keep adjacent to the table block and place it above the table (GB/T 7713 table caption position)
 - Table block: center the table itself, center cell text horizontally, and center cell content vertically
 - Figure title: below figure, centered, Songti small-5
 - Equation numbering: right-aligned in parentheses, continuous or chapter-based but consistent

@@ -169,7 +169,7 @@ def parse_args() -> argparse.Namespace:
         "--mode",
         default=None,
         choices=["audit-only", "conservative-repair", "rebuild"],
-        help=argparse.SUPPRESS,
+        help="Expert repair mode; audit-only keeps the source untouched",
     )
     parser.add_argument("--output-dir", help="Output base; default: thesis-output beside input, with an isolated subdirectory per run")
     parser.add_argument("--project-name", help="Project name; defaults to input filename, never an inferred thesis title")
@@ -185,7 +185,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--render-backend", choices=["auto", "word", "libreoffice", "wps"], default="auto")
     parser.add_argument("--check", choices=["structural", "layout", "visual"], default=None, help="Explicit override of quality check level (legacy compatible)")
     parser.add_argument("--export-pdf", action="store_true", help="Export Word PDF independently of visual review")
-    parser.add_argument("--allow-structural-rebuild", action="store_true", help="Explicitly allow DOCX whole-document rebuild and template front-matter replacement")
+    parser.add_argument("--allow-structural-rebuild", action="store_true", help="Allow composing missing template front-matter pages and the expert composition path; the body is still preserved")
     parser.add_argument("--header-mode", choices=["fixed", "thesis-title", "preserve"], help="Word header text policy; default from profile")
     parser.add_argument("--header-text", help="Fixed Word header text; implies --header-mode fixed")
     parser.add_argument("--latin-font", help="Explicit Word Latin font override (e.g. Times New Roman); preserves the cover and does not affect LaTeX")
@@ -1109,8 +1109,12 @@ def print_cli_summary(manifest: Dict[str, object], deliverables: Dict[str, objec
     if isinstance(asset_report, dict):
         if asset_report.get("passed"):
             after = asset_report.get("after") or {}
+            before = asset_report.get("before") or {}
+            media = str(after.get("mediaFiles", 0))
+            if before.get("mediaFiles") != after.get("mediaFiles"):
+                media += f"（源文档 {before.get('mediaFiles', 0)}，含模板资源）"
             lines.append(
-                f"  资产保留: 图片/媒体 {after.get('mediaFiles', 0)}、表格 {after.get('tables', 0)}、公式 {after.get('equations', 0)},与源文档一致"
+                f"  资产保留: 图片/媒体 {media}、表格 {after.get('tables', 0)}、公式 {after.get('equations', 0)}"
             )
         else:
             for warning in (asset_report.get("warnings") or [])[:3]:
@@ -1195,10 +1199,12 @@ def execute(args: argparse.Namespace, workspace: Workspace, manifest: Dict[str, 
     preflight_cmd = preflight_command(input_path, profile, output_dir)
     pipeline_prefix_commands = [evidence_cmd, numbering_cmd, ir_cmd, ir_validation_cmd, preflight_cmd]
     manifest["wordCitationManagement"] = "disabled; bibliography presentation and non-mutating checks only"
+    compose_front_matter = kind == "docx" and args.allow_structural_rebuild and profile.front_matter_template is not None
     manifest["wordInputPolicy"] = {
         "mode": "preserve-input" if kind == "docx" else "fresh-from-source",
-        "coverSource": str(profile.front_matter_template) if kind != "docx" else "input (unless explicitly authorized rebuild)",
-        "coverSourceSha256": file_digest(profile.front_matter_template) if kind != "docx" and profile.front_matter_template else None,
+        "coverSource": str(profile.front_matter_template) if (kind != "docx" or compose_front_matter) else "input",
+        "coverSourceSha256": file_digest(profile.front_matter_template) if (kind != "docx" or compose_front_matter) and profile.front_matter_template else None,
+        "frontMatterComposed": compose_front_matter,
         "latinFontOverride": args.latin_font,
     }
 

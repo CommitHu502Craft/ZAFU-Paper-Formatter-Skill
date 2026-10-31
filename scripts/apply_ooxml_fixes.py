@@ -316,6 +316,7 @@ def build_toc_field_paragraph() -> ET.Element:
     pstyle.set(qn("val"), "zafu_toc_body")
     fld_simple = ET.SubElement(paragraph, qn("fldSimple"))
     fld_simple.set(qn("instr"), WORD_TOC_FIELD_INSTR)
+    fld_simple.set(qn("dirty"), "true")
     run = ET.SubElement(fld_simple, qn("r"))
     text = ET.SubElement(run, qn("t"))
     text.text = "在 Word 中打开后更新目录"
@@ -782,6 +783,33 @@ def normalize_front_matter_token(text: str) -> str:
     return normalize_heading_token(text).replace("\u3000", "")
 
 
+EN_ABSTRACT_LABELS = ("Abstract", "ABSTRACT")
+EN_KEYWORDS_LABELS = ("Key words", "Key Words", "KEY WORDS", "Keywords", "KEYWORDS")
+
+
+def split_english_front_label(text: str) -> Tuple[Optional[str], Optional[str], str]:
+    """Return (kind, label, content) for an English front-matter label line."""
+    stripped = (text or "").strip()
+    for kind, labels in (("abstract", EN_ABSTRACT_LABELS), ("keywords", EN_KEYWORDS_LABELS)):
+        for label in labels:
+            if stripped == label or stripped in (label + ":", label + "："):
+                return kind, label, ""
+            for separator in (":", "："):
+                if stripped.startswith(label + separator):
+                    return kind, label, stripped[len(label) + 1:].strip()
+    return None, None, ""
+
+
+def looks_like_english_title(text: str) -> bool:
+    """Distinguish a short English title from an abstract body paragraph."""
+    stripped = (text or "").strip()
+    if not stripped or len(stripped) > 120:
+        return False
+    if len(stripped.split()) > 24:
+        return False
+    return not stripped.endswith((".", "。"))
+
+
 def detect_body_start_paragraph(
     body_paragraphs: List[ET.Element],
     plan: Dict[str, Any],
@@ -844,6 +872,121 @@ def ensure_section_break_before_paragraph(
             "boundaryParagraphIndex": paragraph_index - 1,
         }
     ]
+
+
+UNNUMBERED_INTRO_RE = re.compile(r"^(引言|前言|绪论)$")
+
+
+def promote_unnumbered_introduction(
+    document_root: ET.Element,
+    protected_prefix_end: int,
+    style_specs: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Style 引言/前言/绪论 as an unnumbered level-1 heading and start the body there.
+
+    ZAFU theses list 引言 in the table of contents and number the body from that
+    page, but its heading carries no chapter number. Without this pass the
+    paragraph keeps body style, stays in the front-matter section and is absent
+    from both the TOC and body page numbering.
+    """
+    body = document_root.find("w:body", NS)
+    if body is None:
+        return []
+    paragraphs = paragraph_nodes(body)
+    intro_index = None
+    for index in range(protected_prefix_end, len(paragraphs)):
+        style_id = paragraph_style_id(paragraphs[index])
+        if style_id == "zafu_heading1":
+            break
+        token = normalize_front_matter_token(element_text(paragraphs[index]))
+        if UNNUMBERED_INTRO_RE.match(token):
+            intro_index = index
+            break
+    if intro_index is None:
+        return []
+
+    intro = paragraphs[intro_index]
+    style_spec = style_specs.get("zafu_heading1")
+    if style_spec is None:
+        return []
+    log: List[Dict[str, Any]] = []
+    if paragraph_style_id(intro) != "zafu_heading1":
+        apply_style_to_paragraph(intro, style_spec)
+        apply_run_defaults(intro, style_spec, preserve_emphasis=False)
+        log.append({"action": "promote_unnumbered_introduction", "paragraphIndex": intro_index})
+
+    if intro_index == 0:
+        return log
+    previous = paragraphs[intro_index - 1]
+    previous_ppr = previous.find("w:pPr", NS)
+    if previous_ppr is not None and previous_ppr.find("w:sectPr", NS) is not None:
+        return log
+
+    # The body section currently starts at the first numbered chapter. Move its
+    # boundary before 引言 so the introduction begins the body page sequence.
+    boundary_paragraph = None
+    for index in range(intro_index + 1, len(paragraphs)):
+        paragraph = paragraphs[index]
+        ppr = paragraph.find("w:pPr", NS)
+        if ppr is not None and ppr.find("w:sectPr", NS) is not None:
+            boundary_paragraph = paragraph
+            break
+        if paragraph_style_id(paragraph) == "zafu_heading1":
+            break
+    if boundary_paragraph is None:
+        return log
+    boundary_ppr = boundary_paragraph.find("w:pPr", NS)
+    sect_pr = boundary_ppr.find("w:sectPr", NS)
+    if sect_pr is None:
+        return log
+
+    boundary_ppr.remove(sect_pr)
+    if previous_ppr is None:
+        previous_ppr = ET.Element(qn("pPr"))
+        previous.insert(0, previous_ppr)
+    previous_ppr.append(sect_pr)
+    log.append(
+        {
+            "action": "move_body_section_break_before_introduction",
+            "introductionParagraphIndex": intro_index,
+            "boundaryParagraphIndex": list(body).index(previous),
+        }
+    )
+    return log
+
+
+def ensure_chapter_page_breaks(
+    body_paragraphs: List[ET.Element],
+    protected_prefix_end: int,
+    body_start_paragraph: Optional[int],
+) -> List[Dict[str, Any]]:
+    """Start every level-1 chapter on a new page unless a section break already does."""
+    log: List[Dict[str, Any]] = []
+    start = protected_prefix_end
+    for index, paragraph in enumerate(body_paragraphs):
+        if index < start:
+            continue
+        if paragraph_style_id(paragraph) != "zafu_heading1":
+            continue
+        if index > 0:
+            previous = body_paragraphs[index - 1]
+            previous_ppr = previous.find("w:pPr", NS)
+            if previous_ppr is not None and previous_ppr.find("w:sectPr", NS) is not None:
+                continue
+        ppr = paragraph.find("w:pPr", NS)
+        if ppr is None:
+            ppr = ET.Element(qn("pPr"))
+            paragraph.insert(0, ppr)
+        if ppr.find("w:pageBreakBefore", NS) is not None:
+            continue
+        page_break = ET.Element(qn("pageBreakBefore"))
+        style_node = ppr.find("w:pStyle", NS)
+        if style_node is not None:
+            ppr.insert(list(ppr).index(style_node) + 1, page_break)
+        else:
+            ppr.insert(0, page_break)
+        log.append({"action": "chapter_page_break", "paragraphIndex": index})
+    return log
 
 
 def classify_section_roles(
@@ -1162,7 +1305,8 @@ def style_spec_from_rules(rules: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         }
 
     body_line = (rules.get("body") or {}).get("line_spacing_pt")
-    caption = build("body_text", "zafu_caption", "ZAFU Caption", fallback_line_pt=body_line)
+    caption_rule_key = "caption" if styles.get("caption") else "body_text"
+    caption = build(caption_rule_key, "zafu_caption", "ZAFU Caption", fallback_line_pt=body_line)
     caption["jc"] = "center"
     caption["ind"] = {"firstLineChars": 0}
     keywords_cn = build("keywords_text_cn", "zafu_keywords_cn", "ZAFU Keywords CN", fallback_line_pt=body_line)
@@ -1527,6 +1671,7 @@ def split_first_run_with_prefix(paragraph: ET.Element, prefix: str) -> Tuple[Opt
         if not new_text_nodes:
             new_text_nodes = [ET.SubElement(new_run, qn("t"))]
         new_text_nodes[0].text = remainder
+        ensure_text_node_preserve(new_text_nodes[0], remainder)
         for extra in new_text_nodes[1:]:
             extra.text = ""
         paragraph.insert(list(paragraph).index(run) + 1, new_run)
@@ -2609,33 +2754,65 @@ def normalize_front_abstract_block(
             }
         )
 
+    merged_english_paragraphs: List[int] = []
     if keywords_index is not None:
         remaining_indices = [index for index in candidate_indices if index > keywords_index]
+        skipped_indices: Set[int] = set()
         for index in remaining_indices:
+            if index in skipped_indices:
+                continue
             text = (element_text(paragraphs[index]) or "").strip()
             if not text:
                 continue
-            if title_en_index is None:
-                # Sources without an English title repeat: the first EN block
-                # may already be the abstract or keywords; don't consume it
-                # as a title.
-                if text.startswith(("Abstract", "ABSTRACT")):
-                    abstract_paragraph_en_index = index
-                    continue
-                if text.startswith(("Keywords", "Key words", "KEY WORDS")):
-                    keywords_en_index = index
-                    break
-                title_en_index = index
-                continue
-            if author_en_index is None and not (text.startswith("Abstract") or text.startswith("ABSTRACT") or text.startswith("Keywords")):
-                author_en_index = index
-                continue
-            if abstract_paragraph_en_index is None and (text.startswith("Abstract") or text.startswith("ABSTRACT")):
-                abstract_paragraph_en_index = index
-                continue
-            if keywords_en_index is None and text.startswith("Keywords"):
+            label_kind, label, label_content = split_english_front_label(text)
+
+            if label_kind == "keywords":
                 keywords_en_index = index
                 break
+
+            if label_kind == "abstract":
+                if label_content:
+                    abstract_paragraph_en_index = index
+                    continue
+                # A bare "Abstract" line belongs to the next paragraph; merging
+                # keeps it from being mistaken for the English title.
+                body_index = next(
+                    (
+                        candidate
+                        for candidate in remaining_indices
+                        if candidate > index
+                        and candidate not in skipped_indices
+                        and (element_text(paragraphs[candidate]) or "").strip()
+                    ),
+                    None,
+                )
+                if body_index is None:
+                    abstract_paragraph_en_index = index
+                    continue
+                body_text = (element_text(paragraphs[body_index]) or "").strip()
+                replace_paragraph_plain_text(paragraphs[index], f"{label}: {body_text}")
+                skipped_indices.add(body_index)
+                merged_english_paragraphs.append(body_index)
+                abstract_paragraph_en_index = index
+                changes.append(
+                    {
+                        "action": "merge_english_abstract_label",
+                        "paragraphIndex": index,
+                        "mergedFrom": body_index,
+                    }
+                )
+                continue
+
+            if abstract_paragraph_en_index is not None or title_en_index is not None:
+                if author_en_index is None:
+                    author_en_index = index
+                continue
+
+            if looks_like_english_title(text):
+                title_en_index = index
+            else:
+                # Sources without an Abstract label still carry the abstract body.
+                abstract_paragraph_en_index = index
 
     if title_en_index is not None:
         title_paragraph_en = paragraphs[title_en_index]
@@ -2663,9 +2840,19 @@ def normalize_front_abstract_block(
     if abstract_paragraph_en_index is not None:
         abstract_paragraph_en = paragraphs[abstract_paragraph_en_index]
         abstract_text_en = (element_text(abstract_paragraph_en) or "").strip()
-        if abstract_text_en.startswith("Abstract ") and not abstract_text_en.startswith("Abstract:"):
-            abstract_text_en = f"Abstract:{abstract_text_en[len('Abstract'):]}"
-            replace_paragraph_plain_text(abstract_paragraph_en, abstract_text_en)
+        normalized_text_en = abstract_text_en
+        if re.match(r"^(Abstract|ABSTRACT)\s*[：:]", normalized_text_en):
+            normalized_text_en = re.sub(
+                r"^(Abstract|ABSTRACT)\s*[：:]\s*", r"\1: ", normalized_text_en, count=1
+            )
+        elif re.match(r"^(Abstract|ABSTRACT)\s+\S", normalized_text_en):
+            normalized_text_en = re.sub(
+                r"^(Abstract|ABSTRACT)\s+", r"\1: ", normalized_text_en, count=1
+            )
+        elif normalized_text_en not in EN_ABSTRACT_LABELS:
+            normalized_text_en = f"Abstract: {normalized_text_en}"
+        if normalized_text_en != abstract_text_en:
+            replace_paragraph_plain_text(abstract_paragraph_en, normalized_text_en)
         special_format_applied = apply_label_content_format(
             abstract_paragraph_en,
             ["Abstract:", "ABSTRACT:"],
@@ -2713,7 +2900,72 @@ def normalize_front_abstract_block(
             }
         )
 
+    for index in sorted(merged_english_paragraphs, reverse=True):
+        merged_paragraph = paragraphs[index]
+        if merged_paragraph in list(body):
+            body.remove(merged_paragraph)
+            changes.append(
+                {
+                    "action": "remove_merged_english_abstract_paragraph",
+                    "paragraphIndex": index,
+                }
+            )
+
     return changes
+
+
+FRONT_LABEL_SPECS: Tuple[Tuple[Tuple[str, ...], str, str], ...] = (
+    (("摘要：", "摘要:"), "zafu_abstract_label_cn", "zafu_abstract_text_cn"),
+    (("关键词：", "关键词:"), "zafu_keywords_label_cn", "zafu_keywords_cn"),
+    (("Abstract:", "ABSTRACT:"), "zafu_abstract_label_en", "zafu_abstract_text_en"),
+    (
+        ("Key words:", "Key Words:", "KEY WORDS:", "Keywords:", "KEYWORDS:"),
+        "zafu_keywords_label_en",
+        "zafu_keywords_en",
+    ),
+)
+
+
+def reapply_front_matter_label_runs(
+    document_root: ET.Element,
+    protected_prefix_end: int,
+    body_start_paragraph: Optional[int],
+    style_specs: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Restore label run fonts after global run normalization.
+
+    ``normalize_runs_by_existing_styles`` applies the paragraph style font to
+    every run, which flattened bold 黑体 labels (摘要/关键词) into the content
+    font (楷体). Re-running the label splitter after that pass keeps the label
+    bold Heiti and the content Kaiti.
+    """
+    body = document_root.find("w:body", NS)
+    if body is None:
+        return []
+    paragraphs = paragraph_nodes(body)
+    limit = body_start_paragraph if body_start_paragraph is not None else len(paragraphs)
+    log: List[Dict[str, Any]] = []
+    for index, paragraph in enumerate(paragraphs):
+        if index < protected_prefix_end or index >= limit:
+            continue
+        text = (element_text(paragraph) or "").strip()
+        for prefixes, label_key, content_key in FRONT_LABEL_SPECS:
+            if not text.startswith(prefixes):
+                continue
+            label_spec = style_specs.get(label_key)
+            content_spec = style_specs.get(content_key)
+            if label_spec is None or content_spec is None:
+                break
+            if apply_label_content_format(paragraph, list(prefixes), label_spec, content_spec):
+                log.append(
+                    {
+                        "action": "reapply_front_matter_label_run",
+                        "paragraphIndex": index,
+                        "labelStyle": label_key,
+                    }
+                )
+            break
+    return log
 
 
 def normalize_plain_text_equations(document_root: ET.Element, protected_prefix_end: int) -> List[Dict[str, Any]]:
@@ -3882,6 +4134,16 @@ def main() -> None:
         execution_log.extend(normalize_decimal_heading_prefixes(body_paragraphs, protected_prefix_end))
     execution_log.extend(normalize_runs_by_existing_styles(body_paragraphs, style_specs, protected_prefix_end))
     execution_log.extend(normalize_body_style_fallback(body_paragraphs, style_specs, protected_prefix_end, body_start_paragraph))
+    execution_log.extend(
+        reapply_front_matter_label_runs(document_root, protected_prefix_end, body_start_paragraph, style_specs)
+    )
+    execution_log.extend(
+        promote_unnumbered_introduction(document_root, protected_prefix_end, style_specs)
+    )
+    body_paragraphs = paragraph_nodes(body)
+    execution_log.extend(
+        ensure_chapter_page_breaks(body_paragraphs, protected_prefix_end, body_start_paragraph)
+    )
 
     for paragraph, correction in corrected_nodes:
         if paragraph not in list(body):

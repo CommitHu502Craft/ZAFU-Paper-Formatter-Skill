@@ -25,6 +25,23 @@ def front_label(text: str):
     return role, match.group(2).strip()
 
 
+BARE_FRONT_LABELS = {
+    "摘要": "abstract_paragraph_cn",
+    "中文摘要": "abstract_paragraph_cn",
+    "abstract": "abstract_paragraph_en",
+    "关键词": "keywords_cn",
+    "关键字": "keywords_cn",
+    "keywords": "keywords_en",
+    "keyword": "keywords_en",
+}
+
+
+def bare_front_label(text: str):
+    """Recognize a label line whose content lives in the following paragraph."""
+    compact = re.sub(r"[\s：:]+", "", text or "").lower()
+    return BARE_FRONT_LABELS.get(compact)
+
+
 def recover_front_roles(paragraphs: list[dict]) -> None:
     """Recover the abstract block from its context, without changing any text."""
     # Labels with omitted punctuation are common in incoming papers. Restrict
@@ -36,11 +53,29 @@ def recover_front_roles(paragraphs: list[dict]) -> None:
             break
         prefix.append(paragraph)
     labels = []
-    for paragraph in prefix:
-        match = front_label(str(paragraph.get("text") or ""))
+    for position, paragraph in enumerate(prefix):
+        text = str(paragraph.get("text") or "").strip()
+        match = front_label(text)
         if match:
             paragraph["role"] = {"role": match[0], "confidence": 0.98, "signals": ["front_label_in_prefix"]}
             labels.append(paragraph)
+            continue
+        bare_role = bare_front_label(text)
+        if not bare_role:
+            continue
+        # A bare "摘要"/"Abstract" line owns the next non-empty paragraph.
+        following = next(
+            (
+                candidate
+                for candidate in prefix[position + 1:]
+                if str(candidate.get("text") or "").strip()
+            ),
+            None,
+        )
+        if following is None or front_label(str(following.get("text") or "")):
+            continue
+        following["role"] = {"role": bare_role, "confidence": 0.96, "signals": ["bare_front_label_in_prefix"]}
+        labels.append(following)
     for language, label_role in (("cn", "abstract_paragraph_cn"), ("en", "abstract_paragraph_en")):
         abstract = next((p for p in labels if p["role"]["role"] == label_role), None)
         if abstract is None:

@@ -1197,13 +1197,36 @@ def analyze_numbering_tree(paragraphs: List[Dict[str, Any]]) -> Dict[str, Any]:
     repair_actions = []
     for item in heading_candidates:
         level = min(max(item.get("level") or 1, 1), 4)
+        manual_numbering = item.get("manualNumbering") or {}
+        unnumbered = (
+            not manual_numbering.get("prefix")
+            and not manual_numbering.get("values")
+            and item.get("numId") in (None, 0, "0")
+        )
+        if unnumbered:
+            # Unnumbered headings such as 引言 must not advance the chapter
+            # sequence, otherwise every following heading reports a mismatch.
+            tree.append(
+                {
+                    "paragraphIndex": item["paragraphIndex"],
+                    "level": level,
+                    "text": item["text"][:160],
+                    "family": None,
+                    "actualPrefix": None,
+                    "expectedPrefix": None,
+                    "numId": item.get("numId"),
+                    "ilvl": item.get("ilvl"),
+                    "confidence": item.get("confidence"),
+                    "unnumbered": True,
+                }
+            )
+            continue
         counters[level - 1] += 1
         for deeper in range(level, len(counters)):
             counters[deeper] = 0
         expected_values = counters[:level]
         family = item.get("family") or dominant_family
         expected_prefix = format_prefix(family, expected_values) if family else None
-        manual_numbering = item.get("manualNumbering") or {}
         actual_prefix = manual_numbering.get("prefix")
         actual_separator = manual_numbering.get("separator") or ""
         actual_values = manual_numbering.get("values")

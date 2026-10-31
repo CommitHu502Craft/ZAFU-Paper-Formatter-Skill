@@ -74,7 +74,17 @@ def explicit_page_break_count(document: Document) -> int:
 
 
 def blank_paragraph_count(document: Document) -> int:
-    return sum(1 for paragraph in document.paragraphs if not paragraph.text.strip())
+    """Count blank paragraphs after the immutable front matter.
+
+    Cover/integrity template pages intentionally carry empty paragraphs; counting
+    them made every template-composed thesis look like it had excessive blanks.
+    """
+    start = 0
+    for index, paragraph in enumerate(document.paragraphs):
+        if paragraph.style is not None and paragraph.style.name == "ZAFU Title CN":
+            start = index
+            break
+    return sum(1 for paragraph in document.paragraphs[start:] if not paragraph.text.strip())
 
 
 CAPTION_RE = re.compile(

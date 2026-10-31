@@ -464,6 +464,7 @@ def add_table_block(document: Document, lines: List[str], state: dict) -> None:
 def add_toc_field(paragraph) -> None:
     fld_simple = OxmlElement("w:fldSimple")
     fld_simple.set(docx_qn("w:instr"), 'TOC \\o "1-3" \\h \\z \\u')
+    fld_simple.set(docx_qn("w:dirty"), "true")
     run = OxmlElement("w:r")
     text = OxmlElement("w:t")
     text.text = "在 Word 中打开后更新目录"
