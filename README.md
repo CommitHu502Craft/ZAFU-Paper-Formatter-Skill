@@ -12,32 +12,34 @@
 
 ## 30 秒了解
 
-<table align="center">
+<div align="center">
+<table>
   <thead>
     <tr>
-      <th align="center">你手上有什么</th>
-      <th align="center">可以得到什么</th>
+      <th>你手上有什么</th>
+      <th>可以得到什么</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center">已经排过版、但格式不统一的 Word 论文</td>
-      <td align="center">按学校规范整理后的 Word，可另存 PDF</td>
+      <td>已经排过版、但格式不统一的 Word 论文</td>
+      <td>按学校规范整理后的 Word，可另存 PDF</td>
     </tr>
     <tr>
-      <td align="center">只有正文、没有封面和目录的 Word</td>
-      <td align="center">原样补齐模板封面、诚信页和目录域</td>
+      <td>只有正文、没有封面和目录的 Word</td>
+      <td>原样补齐模板封面、诚信页和目录域</td>
     </tr>
     <tr>
-      <td align="center">Markdown / TXT 文字稿</td>
-      <td align="center">新建 Word，或生成可编译的 LaTeX 工程</td>
+      <td>Markdown / TXT 文字稿</td>
+      <td>新建 Word，或生成可编译的 LaTeX 工程</td>
     </tr>
     <tr>
-      <td align="center">想同时保留两种交付</td>
-      <td align="center">同一份文字稿分别生成 Word 和 LaTeX</td>
+      <td>想同时保留两种交付</td>
+      <td>同一份文字稿分别生成 Word 和 LaTeX</td>
     </tr>
   </tbody>
 </table>
+</div>
 
 排版只处理格式：**不润色、不补写、不重写内容，也不覆盖原稿。**
 
