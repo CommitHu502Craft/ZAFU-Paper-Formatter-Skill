@@ -1,0 +1,97 @@
+{
+  "candidateSha256": "dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a",
+  "reviewer": "Codex (actual overview and all five critical PNGs inspected)",
+  "reviewedImages": [
+    {
+      "path": "work\\render_validation\\dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a\\contact_sheet.png",
+      "sha256": "c036d30e84c97885e9192b7d53e226ba2459d9bb7f4a25d258cf15892c5b226b"
+    },
+    {
+      "path": "work\\render_validation\\dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a\\critical_pages\\critical_1_5-1.png",
+      "sha256": "c53c8c764e54f716e9c9f4b91a49eb0dbb58ca33c226d1136fd901e10d79c61c"
+    },
+    {
+      "path": "work\\render_validation\\dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a\\critical_pages\\critical_1_5-2.png",
+      "sha256": "5b990e2a9644024a8666527146ea95c2d91538c666a10cafeb1694793c1cb8d0"
+    },
+    {
+      "path": "work\\render_validation\\dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a\\critical_pages\\critical_1_5-3.png",
+      "sha256": "58e1d67d3d3ae95e5ba818bf9ad668cd9171f1903983d5f968a32199be7b6f3e"
+    },
+    {
+      "path": "work\\render_validation\\dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a\\critical_pages\\critical_1_5-4.png",
+      "sha256": "c2d548dba45f0a538397db5e23fda5f4dd960b3538c5f7c8c753f582a427ae49"
+    },
+    {
+      "path": "work\\render_validation\\dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a\\critical_pages\\critical_1_5-5.png",
+      "sha256": "b27932acbfeb92a433b8059323266f139475a8da48de2e00b8096ec463aa691f"
+    }
+  ],
+  "issueDispositions": {},
+  "additionalIssues": [
+    {
+      "type": "cover_metadata_incomplete",
+      "page": 1,
+      "severity": "warning",
+      "reason": "Cover fields and college remain template placeholders; source provides no personal metadata. No information was invented."
+    },
+    {
+      "type": "front_matter_source_incomplete",
+      "page": 4,
+      "severity": "warning",
+      "reason": "Fixture has no English abstract or English keywords; these were not fabricated."
+    },
+    {
+      "type": "header_footer_requires_profile_review",
+      "page": 1,
+      "pages": [
+        1,
+        2,
+        5
+      ],
+      "severity": "warning",
+      "reason": "Cover and statement visibly carry Arabic page numbers; body first page has no running header. Confirm school requirements and repair the profile before final thesis delivery."
+    }
+  ],
+  "observations": [
+    "The section-closing paragraph was formerly reused by the body heading. After correction, page 4 contains only the abstract and page 5 contains the heading and body together.",
+    "All five rendered pages inspected: no clipped table or overlapping body text observed in this fixture. This is not certification for other documents."
+  ],
+  "visualAcceptance": {
+    "rendered": true,
+    "previewGenerated": true,
+    "visualReviewed": true,
+    "visualReviewStatus": "reviewed_with_issues",
+    "unresolvedVisualIssues": [
+      {
+        "type": "cover_metadata_incomplete",
+        "page": 1,
+        "severity": "warning",
+        "reason": "Cover fields and college remain template placeholders; source provides no personal metadata. No information was invented."
+      },
+      {
+        "type": "front_matter_source_incomplete",
+        "page": 4,
+        "severity": "warning",
+        "reason": "Fixture has no English abstract or English keywords; these were not fabricated."
+      },
+      {
+        "type": "header_footer_requires_profile_review",
+        "page": 1,
+        "pages": [
+          1,
+          2,
+          5
+        ],
+        "severity": "warning",
+        "reason": "Cover and statement visibly carry Arabic page numbers; body first page has no running header. Confirm school requirements and repair the profile before final thesis delivery."
+      }
+    ],
+    "repairRounds": 0,
+    "candidateSha256": "dc139ba05cc80f3190397cc7ce675929b1be93a74d649edd177bdaf1d1b9031a",
+    "renderBackend": "word_com",
+    "requestedBackend": "word"
+  },
+  "renderBackend": "word_com",
+  "pageCount": 5
+}

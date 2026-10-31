@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import copy
+from contextlib import nullcontext
 import json
+import posixpath
 import re
 import zipfile
 import xml.etree.ElementTree as ET
@@ -12,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import yaml
+from formatter_core.session import cached_analysis
 
 NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -182,6 +185,7 @@ def deep_merge(base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+@cached_analysis("rules", ["path"])
 def load_rules(path: Optional[str]) -> Dict[str, Any]:
     if not path:
         return {}
@@ -233,7 +237,13 @@ def front_matter_policy_value(front_matter_policy: Dict[str, Any], key: str, def
 
 
 def normalize_rel_target_word(base_part: str, target: str) -> str:
-    raw = (Path(base_part).parent / target).as_posix()
+    # OPC targets are relative to the owning part, not its _rels directory.
+    if target.startswith("/"):
+        return posixpath.normpath(target).lstrip("/")
+    base = posixpath.dirname(base_part)
+    if base_part.endswith(".rels") and posixpath.basename(base) == "_rels":
+        base = posixpath.dirname(base)
+    raw = posixpath.join(base, target)
     parts: List[str] = []
     for token in raw.split("/"):
         if token in {"", "."}:
@@ -926,7 +936,8 @@ def classify_paragraph_role(paragraph: Dict[str, Any]) -> Dict[str, Any]:
         return {"role": "keywords_cn", "confidence": 0.96, "signals": ["keywords_label"]}
     if text.startswith("Key words") or text.startswith("Key Words") or text.startswith("KEY WORDS") or text.startswith("Keywords"):
         return {"role": "keywords_en", "confidence": 0.96, "signals": ["keywords_label"]}
-    if text in {"参考文献"}:
+    from formatter_core.sections import is_references_heading
+    if is_references_heading(text):
         return {"role": "references_heading", "confidence": 0.97, "signals": ["exact_heading"]}
     if text in {"致谢", "致  谢"}:
         return {"role": "ack_heading", "confidence": 0.97, "signals": ["exact_heading"]}
@@ -1426,6 +1437,7 @@ def extract_header_footer_parts(zf: zipfile.ZipFile) -> Dict[str, Any]:
             "text": "".join(texts).strip(),
             "paragraphCount": len(paragraphs),
             "paragraphs": [text.strip() for text in texts if text.strip()],
+            "fieldInstructions": [node.text or "" for node in root.iter(qn("instrText"))] + [node.get(qn("instr"), "") for node in root.iter(qn("fldSimple"))],
         }
     return parts
 
@@ -1459,7 +1471,7 @@ def parse_sections(
         footer_refs = []
         for tag, container in [("headerReference", header_refs), ("footerReference", footer_refs)]:
             for ref in sect.findall(f"w:{tag}", NS):
-                rel_id = ref.attrib.get(qn("id"))
+                rel_id = ref.attrib.get(f"{{{NS['r']}}}id")
                 rel = document_rels.get(rel_id or "", {})
                 target = rel.get("target")
                 container.append(
@@ -1468,6 +1480,7 @@ def parse_sections(
                         "rId": rel_id,
                         "target": target,
                         "text": parts_text.get(target, {}).get("text") if target else None,
+                        "fieldInstructions": parts_text.get(target, {}).get("fieldInstructions", []) if target else [],
                     }
                 )
         pg_num_type = sect.find("w:pgNumType", NS)
@@ -1670,14 +1683,26 @@ def compare_rules_to_baseline(rules: Dict[str, Any], baseline: Dict[str, Any]) -
     return {"mismatches": mismatches, "match": not mismatches}
 
 
+@cached_analysis("document", ["docx_path", "template_docx", "rules_path"])
 def parse_document(
     docx_path: str,
     template_docx: Optional[str] = None,
     rules_path: Optional[str] = None,
+    *, detail: str = "full",
+    _package_files: Optional[Dict[str, bytes]] = None,
+    _document_root: Optional[ET.Element] = None,
 ) -> Dict[str, Any]:
+    if detail not in {"full", "semantic"}:
+        raise ValueError(f"Unknown document analysis detail: {detail}")
     rules = load_rules(rules_path)
-    with zipfile.ZipFile(docx_path) as zf:
-        document_root = read_xml(zf, "word/document.xml")
+    class PackageView:
+        def namelist(self):
+            return list(_package_files)
+        def read(self, name):
+            return _package_files[name]
+    package = nullcontext(PackageView()) if _package_files is not None else zipfile.ZipFile(docx_path)
+    with package as zf:
+        document_root = _document_root if _document_root is not None else read_xml(zf, "word/document.xml")
         styles_root = read_xml(zf, "word/styles.xml")
         numbering_root = read_xml(zf, "word/numbering.xml")
         theme_root = read_xml(zf, "word/theme/theme1.xml")
@@ -1726,7 +1751,7 @@ def parse_document(
                     numbering_level = get_numbering_level(numbering, str(num_id) if num_id is not None else None, ilvl)
                     effective_paragraph = resolve_effective_ppr(doc_defaults, style_chain, numbering_level, ppr)
                     runs = []
-                    for run_index, run in enumerate(iter_text_runs(child)):
+                    for run_index, run in enumerate(iter_text_runs(child) if detail == "full" else []):
                         direct_rpr = parse_rpr(run.find("w:rPr", NS))
                         run_style_id = direct_rpr.get("rStyle")
                         run_style_chain = build_style_chain(run_style_id, styles)
@@ -1796,6 +1821,17 @@ def parse_document(
                     body_sequence.append({"kind": "table", "tableIndex": table_index, "textPreview": paragraph_text(child)[:120]})
                     table_index += 1
 
+        from formatter_core.sections import recover_front_roles
+        recover_front_roles(paragraphs)
+        in_references = False
+        for paragraph in paragraphs:
+            role = (paragraph.get("role") or {}).get("role")
+            if role == "references_heading":
+                in_references = True
+            elif role in {"ack_heading", "appendix_heading"} or (in_references and role == "heading1" and paragraph.get("manualNumbering")):
+                in_references = False
+            elif in_references and paragraph.get("text", "").strip():
+                paragraph["role"] = {"role": "reference_entry", "confidence": 0.97, "signals": ["within_references_section"]}
         sections = parse_sections(document_root, document_rels, header_footer_parts)
         numbering_analysis = analyze_numbering_tree(paragraphs)
         style_analysis = analyze_styles(styles)
@@ -1869,6 +1905,7 @@ def parse_document(
         }
 
 
+@cached_analysis("template", ["docx_path", "rules_path"], persistent=True)
 def extract_template_baseline(docx_path: str, rules_path: Optional[str] = None) -> Dict[str, Any]:
     document = parse_document(docx_path, rules_path=rules_path)
     baseline = {
@@ -2214,7 +2251,13 @@ def build_repair_plan(
         elif role_name in {"toc_field", "toc_entry"}:
             abstract_context = None
             style_mapping[str(paragraph["index"])] = style_targets["toc_body"]
-        elif role_name in {"heading1", "references_heading", "ack_heading", "appendix_heading"}:
+        elif role_name == "reference_entry":
+            abstract_context = None
+            style_mapping[str(paragraph["index"])] = "zafu_references_cn" if re.search(r"[\u4e00-\u9fff]", text) else "zafu_references_en"
+        elif role_name == "references_heading":
+            abstract_context = None
+            style_mapping[str(paragraph["index"])] = "zafu_references_heading"
+        elif role_name in {"heading1", "ack_heading", "appendix_heading"}:
             abstract_context = None
             style_mapping[str(paragraph["index"])] = style_targets["heading1"]
             paragraph_actions.append({"paragraphIndex": paragraph["index"], "action": "normalize_heading_style", "targetStyle": style_targets["heading1"]})

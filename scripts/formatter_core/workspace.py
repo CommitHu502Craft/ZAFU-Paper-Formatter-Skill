@@ -125,7 +125,7 @@ class Workspace:
         manifest["projectName"] = self.project
         if "inputSha256" not in manifest:
             manifest["inputSha256"] = file_digest(self.source)
-        manifest["visualReviewed"] = False
+        manifest["visualReviewed"] = bool((manifest.get("visualAcceptance") or {}).get("visualReviewed", False))
         for key in ("artifacts", "deliverables", "backendResults"):
             if isinstance(manifest.get(key), dict):
                 manifest[key] = self.portable_paths(manifest[key])

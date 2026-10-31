@@ -64,7 +64,7 @@ BODY_HEADING_RE = re.compile(
 )
 ABSTRACT_CN_HEADINGS = {"中文摘要", "摘 要", "摘  要", "摘要"}
 BODY_HEADING_STYLE_IDS = {"zafu_body", "Body Text", "Body Text Indent"}
-REFERENCES_HEADING_RE = re.compile(r"^\s*(参考文献|References)(?:[（(].*?[)）])?\s*$")
+from formatter_core.sections import REFERENCES_HEADING_RE, is_references_heading
 TABLE_CAPTION_RE = re.compile(rf"^表\s*{CAPTION_LABEL_TOKEN_RE}(?:\s+|[：:．。]|$)")
 DEFAULT_REFERENCE_TEMPLATE = Path(__file__).resolve().parent.parent / "浙江农林大学毕业论文模板参考.docx"
 
@@ -480,9 +480,9 @@ def _looks_like_reference_entry(text: str) -> bool:
 
 def split_reference_entries(text: str) -> List[str]:
     normalized = (text or "").strip()
-    if not normalized:
+    if not normalized or is_references_heading(normalized):
         return []
-    normalized = re.sub(r"^\s*参考文献\s*", "", normalized)
+    normalized = re.sub(r"^\s*(?:参\s*考\s*文\s*献|References)\s*[:：]?\s*", "", normalized, flags=re.I)
     starts = list(re.finditer(r"\[\s*\d+\s*\]", normalized))
     if not starts:
         return [normalized] if normalized else []
@@ -536,7 +536,7 @@ def normalize_references_section(
         if index < protected_prefix_end:
             continue
         text = (element_text(paragraph) or "").strip().replace(" ", "")
-        if text == "参考文献" or text.startswith("参考文献[") or text.startswith("参考文献［"):
+        if is_references_heading(text) or text.startswith("参考文献[") or text.startswith("参考文献［"):
             heading_index = index
             break
     if heading_index is None:
@@ -568,6 +568,7 @@ def normalize_references_section(
         )
         paragraphs = paragraph_nodes(body)
 
+    body_uses_numbers = any(re.search(r"\[\s*\d+(?:\s*[-–,，]\s*\d+)*\s*\]", element_text(p) or "") for p in paragraphs[protected_prefix_end:heading_index])
     for index in range(heading_index + 1, len(paragraphs)):
         paragraph = paragraphs[index]
         text = (element_text(paragraph) or "").strip()
@@ -579,7 +580,10 @@ def normalize_references_section(
         if re.match(r"^\d+(?:\.\d+)*\s+\S+", text):
             break
         extra_entries = split_reference_entries(text) if text.count("[") > 1 else []
-        if extra_entries:
+        has_fields = paragraph.find(".//w:fldChar", NS) is not None or paragraph.find(".//w:fldSimple", NS) is not None
+        if len(extra_entries) > 1 and has_fields:
+            changes.append({"action": "preserve_reference_field_structure", "paragraphIndex": index, "reason": "splitting_would_destroy_native_fields"})
+        elif len(extra_entries) > 1:
             source_rpr = first_run_rpr(paragraph)
             replace_paragraph_plain_text(paragraph, extra_entries[0])
             anchor = paragraph
@@ -590,7 +594,9 @@ def normalize_references_section(
         spec_key = "zafu_references_en" if re.search(r"[A-Za-z]", text) and not re.search(r"[\u4e00-\u9fff]", text) else "zafu_references_cn"
         spec = style_specs[spec_key]
         numeric_label_removed = False
-        if bibliography_numbering == "none":
+        # Keep numeric labels while body citations still refer to them. Changing
+        # citation systems must update both ends, not strip the list in isolation.
+        if bibliography_numbering == "none" and not body_uses_numbers:
             numeric_label_removed = strip_leading_numeric_reference_label(paragraph)
         apply_style_to_paragraph(paragraph, spec)
         ppr = paragraph.find("w:pPr", NS)
@@ -2996,6 +3002,10 @@ def apply_section_geometry_from_template(
     forced_size = page_size_from_rules(fallback_page_rules)
     current_sections = classify_section_roles(document_root, protected_prefix_end, body_start_paragraph)
     for sect_info in current_sections:
+        if sect_info["role"] == "front_matter":
+            # These sections already came verbatim from the original template.
+            # Even adding a default orient="portrait" rewrites protected XML.
+            continue
         target_page: Dict[str, Any] = {}
         target_mode = None
         template_section = template_section_info_for_role(template_sections, sect_info["role"])
@@ -3555,13 +3565,14 @@ def main() -> None:
     parser.add_argument("--validators-yaml", help="Optional profile validator selection YAML")
     parser.add_argument("--report-json", help="Write execution and diff report JSON to this path")
     parser.add_argument("--allow-structural-rebuild", action="store_true", help="Allow template front-matter replacement")
+    parser.add_argument("--defer-validation", action="store_true", help="Integrated builder performs final validation once")
     args = parser.parse_args()
 
     rules = load_rules(args.rules_yaml)
     requested_template_audit = parse_document(args.template_docx, rules_path=args.rules_yaml) if args.template_docx else None
     reference_template_path = resolve_reference_template_path(args.template_docx, requested_template_audit)
     reference_template_docx = str(reference_template_path) if reference_template_path is not None else args.template_docx
-    before_audit = parse_document(args.source_docx, template_docx=reference_template_docx, rules_path=args.rules_yaml)
+    before_audit = parse_document(args.source_docx, template_docx=reference_template_docx, rules_path=args.rules_yaml, detail="semantic" if args.defer_validation else "full")
     if args.plan_json:
         plan = json.loads(Path(args.plan_json).read_text(encoding="utf-8"))
     else:
@@ -3884,13 +3895,16 @@ def main() -> None:
             apply_run_defaults(paragraph, spec, preserve_emphasis=correction["role"] == "body")
             execution_log.append({"action": "apply_semantic_correction", **correction})
 
+    if use_template_front_matter:
+        from formatter_core.word_headers import separate_toc_and_abstract
+        execution_log.extend(separate_toc_and_abstract(document_root, template_prefix_paragraph_count))
     header_mode = (rules.get("page") or {}).get("header_text_mode", "thesis_title_after_toc")
     header_text = str((rules.get("page") or {}).get("header_text") or "") if header_mode == "fixed" else str(plan.get("headerText") or "").strip()
     if not header_text and header_mode not in {"fixed", "preserve"}:
         header_text = infer_header_text_from_paragraphs(body_paragraphs, protected_prefix_end)
     page_rules = rules.get("page") or {}
     execution_log.extend(apply_header_policy(document_root, files, header_text, header_mode, replace_header_text,
-        create_missing=bool(page_rules.get("create_missing_body_headers"))))
+        create_missing=bool(page_rules.get("create_missing_body_headers", True))))
     if page_rules.get("fresh_document"):
         execution_log.extend(initialize_fresh_footers(document_root, files, str(rules.get("latin_font_override") or "Times New Roman")))
 
@@ -3966,15 +3980,16 @@ def main() -> None:
             f"Cannot write output DOCX '{args.output_docx}'. Close any app that is opening this file and retry."
         ) from exc
 
-    after_audit = parse_document(args.output_docx, template_docx=reference_template_docx, rules_path=args.rules_yaml)
+    after_audit = None if args.defer_validation else parse_document(args.output_docx, template_docx=reference_template_docx, rules_path=args.rules_yaml)
     report = {
-        "generatedAt": after_audit["generatedAt"],
+        "generatedAt": (after_audit or before_audit)["generatedAt"],
         "sourceDocx": str(Path(args.source_docx).resolve()),
         "outputDocx": str(Path(args.output_docx).resolve()),
         "plan": plan,
         "executionLog": execution_log,
         "executionSummary": summarize_execution_log(execution_log),
-        "diffReport": diff_audits(before_audit, after_audit, plan=plan, execution_log=execution_log),
+        "diffReport": diff_audits(before_audit, after_audit, plan=plan, execution_log=execution_log) if after_audit else None,
+        "validationDeferred": args.defer_validation,
     }
     if args.report_json:
         write_json(report, args.report_json)

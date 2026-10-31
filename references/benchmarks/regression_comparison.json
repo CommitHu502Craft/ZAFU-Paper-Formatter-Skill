@@ -1,0 +1,394 @@
+[
+  {
+    "label": "before",
+    "fixtureCount": 25,
+    "executedCount": 24,
+    "skippedCount": 1,
+    "passedCount": 10,
+    "failedCount": 14,
+    "fixtures": [
+      {
+        "name": "docx_collapsed_references_single_paragraph",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "docx_hybrid_mixed_confidence_assets",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "chosenStrategy: expected 'hybrid_rebuild', got 'preserve_first'",
+          "requiresHybridAttachmentReport: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_hybrid_rebuild_candidate",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "chosenStrategy: expected 'hybrid_rebuild', got 'preserve_first'",
+          "requiresHybridAttachmentReport: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_hybrid_table_mixed_confidence",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "chosenStrategy: expected 'hybrid_rebuild', got 'preserve_first'",
+          "requiresHybridAttachmentReport: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_conflict",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_duplicate_labels",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_mixed_span",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_unmatched",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_plain_text_equation_conversion",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_split_dollar_display_math",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "docx_strict_three_line_single_header",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "manual_numbering_docx",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "normal_template_docx",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "plain_txt_backmatter_sections",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_body_enumeration_not_heading",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'stopped_for_confirmation', got 'completed'"
+        ]
+      },
+      {
+        "name": "plain_txt_clean",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_equation_conversion",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_inline_abstract",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_conflict",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_duplicate_labels",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_mixed_span",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_multi_span",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_unmatched",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "render_preview_enabled_normal_template_docx",
+        "passed": null,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "unified_markdown",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      }
+    ]
+  },
+  {
+    "label": "release",
+    "fixtureCount": 25,
+    "executedCount": 24,
+    "skippedCount": 1,
+    "passedCount": 10,
+    "failedCount": 14,
+    "fixtures": [
+      {
+        "name": "docx_collapsed_references_single_paragraph",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "docx_hybrid_mixed_confidence_assets",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "chosenStrategy: expected 'hybrid_rebuild', got 'preserve_first'",
+          "requiresHybridAttachmentReport: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_hybrid_rebuild_candidate",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "chosenStrategy: expected 'hybrid_rebuild', got 'preserve_first'",
+          "requiresHybridAttachmentReport: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_hybrid_table_mixed_confidence",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "chosenStrategy: expected 'hybrid_rebuild', got 'preserve_first'",
+          "requiresHybridAttachmentReport: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_conflict",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_duplicate_labels",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_mixed_span",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_numeric_reference_unmatched",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_plain_text_equation_conversion",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'",
+          "validationSummary.qualityGatePassed: expected True, got False"
+        ]
+      },
+      {
+        "name": "docx_split_dollar_display_math",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "docx_strict_three_line_single_header",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "manual_numbering_docx",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "normal_template_docx",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'completed', got 'completed_with_hard_failures'"
+        ]
+      },
+      {
+        "name": "plain_txt_backmatter_sections",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_body_enumeration_not_heading",
+        "passed": false,
+        "skipped": null,
+        "mismatches": [
+          "dispatcherStatus: expected 'stopped_for_confirmation', got 'completed'"
+        ]
+      },
+      {
+        "name": "plain_txt_clean",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_equation_conversion",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_inline_abstract",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_conflict",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_duplicate_labels",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_mixed_span",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_multi_span",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "plain_txt_numeric_reference_unmatched",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "render_preview_enabled_normal_template_docx",
+        "passed": null,
+        "skipped": null,
+        "mismatches": []
+      },
+      {
+        "name": "unified_markdown",
+        "passed": true,
+        "skipped": null,
+        "mismatches": []
+      }
+    ]
+  }
+]

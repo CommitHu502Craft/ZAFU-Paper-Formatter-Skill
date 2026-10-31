@@ -1,18 +1,20 @@
 # Backend and Workspace Contract
 
+Public default is `--quality final`, with `--quality fast` for explicitly requested structural-only drafts; explicit `--check` wins. See [current architecture](formatting_first_architecture.md). Internal execution and review states support traceability; the completion claim to the user depends on the actual thesis meeting its requirements, with remaining issues listed. The Agent handles review records after inspecting the rendered pages; preview generation itself never attests review. Legacy audit artifacts remain available with `--pipeline legacy`.
+
 This contract supersedes historical dispatcher defaults in the Word architecture notes.
 
 ## Pipeline boundaries
 
-Evidence extraction → numbering recovery → ThesisIR → IR validation → preflight/strategy → independent writers → validation → publication.
+Ordinary runs: evidence/ThesisIR → independent writers or batch normalization → validation → bounded visual workflow → publication. The legacy expert route retains numbering/preflight/strategy artifacts.
 
 The shared semantic stages run once for `--backend both`. The Word writer keeps native preservation/repair and hybrid rebuild. The LaTeX writer consumes `semanticBlocks` directly, not DOCX exported by the Word writer. `hybrid_rebuild` remains an internal Word strategy, not a synonym for two output backends.
 
 Original DOCX repair forwards explicit IR role corrections to the in-place planner; it does not force a complete document rebuild. Unknown block IDs are skipped, not guessed from numeric substrings. Unsupported in-place roles and protected front matter remain unchanged and are reported.
 
-DOCX hybrid rebuild, template front-matter replacement, and automatic insertion of a body section boundary require `--allow-structural-rebuild`. Without it, the dispatcher falls back to in-place repair and reports deferred structural changes. Audit-only remains read-only regardless of the strategy. Newly generated Markdown/TXT documents may still use template composition.
+The CLI's template-composition and whole-document rebuild route requires `--allow-structural-rebuild`; without it, ordinary DOCX normalization does not insert template front pages. Under the Agent workflow in SKILL.md, supplying missing required template pages verbatim and isolating headers/page numbers are within the formatting task: use the appropriate composition or targeted OOXML path and verify preservation. This does not authorize filling, editing or replacing existing cover/integrity pages, or unrelated whole-document rebuilding. Audit-only remains read-only. Newly generated Markdown/TXT documents may use template composition.
 
-Word header policy is configured by `page.header_text_mode` (`fixed`, `thesis_title_after_toc`, `preserve`) and `page.header_text`. CLI `--header-mode thesis-title` maps to `thesis_title_after_toc`. Existing eligible header references are updated per section; pure TOC sections receive blank headers. Mixed or unrecognized scopes remain untouched with review notices. No missing body header is invented, and the external CLS is unchanged.
+Word header policy is configured by `page.header_text_mode` (`fixed`, `thesis_title_after_toc`, `preserve`) and `page.header_text`. CLI `--header-mode thesis-title` maps to `thesis_title_after_toc`; an explicit `preserve` keeps headers unchanged. Otherwise, recognized body/abstract sections receive missing headers and empty headers are populated, including first/even variants when enabled. Pure TOC sections receive blank headers; shared parts must be isolated from immutable cover/integrity pages. Mixed or unrecognized scopes are reported for targeted follow-up rather than silently counted as compliant. The external LaTeX CLS is unchanged.
 
 Modules:
 
@@ -29,9 +31,9 @@ Python 3.11+ with the declared dependencies is sufficient to run the dispatcher.
 
 ## Checks
 
-`structural` is the default. No Word PDF converter, text geometry extraction, page images or Agent visual review is invoked implicitly.
+`--quality final` defaults to `visual`; `--quality fast` defaults to `structural`. Explicit `--check` overrides either. Rendering does not imply an Agent has reviewed images.
 
-`--export-pdf` independently requests Word PDF conversion. `layout` requests PDF text/geometry analysis without image export. `visual` additionally generates previews but never means a human/Agent has reviewed them. Every summary marks `visualReviewed: false` until an external, explicit review has actually happened; current CLI does not certify that review.
+`--export-pdf` independently requests Word PDF conversion. `layout` requests PDF text/geometry analysis without image export. `visual` additionally generates previews. `visualReviewed` stays false until actual candidate-bound image inspection is recorded with `record_visual_review.py`.
 
 Profile validator selections cannot implicitly turn on default rendering. Requested PDF export is not cancelled by a profile's disabled render validator. LaTeX compilation is document generation and is independent of Word PDF export and review.
 
@@ -82,4 +84,4 @@ The adapter binds existing `zhsong`, `zhkai`, `zhhei`, `zhfs` families to instal
 
 ## Compatibility migration
 
-Standalone low-level scripts keep their explicit output arguments. The public dispatcher intentionally replaces a flat `output/dispatch_manifest.json` plus duplicated `final/debug` layout with isolated `manifest.json` and registered paths. Regression fixtures resolve their own run manifest. Default render assertions migrate from `unavailable` to `skipped`, because the converter was not requested rather than attempted unsuccessfully.
+Standalone low-level scripts keep their explicit output arguments. The public dispatcher intentionally replaces a flat `output/dispatch_manifest.json` plus duplicated `final/debug` layout with isolated `manifest.json` and registered paths. Regression fixtures resolve their own run manifest. For explicit structural-only runs, render assertions use `skipped` when conversion was not requested; Final requests rendering by default and must distinguish conversion failure from a skipped check.

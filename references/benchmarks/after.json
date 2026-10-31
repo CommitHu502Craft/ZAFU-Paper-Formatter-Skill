@@ -1,0 +1,879 @@
+{
+  "label": "after-serial",
+  "check": "structural",
+  "python": "3.12.12",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "notes": "Inclusive instrumented timings; cold=fresh case cache, warm=repeat process with shared template cache; OS disk cache not flushed. Missing stages were not executed. Times are not additive because parse/extract/validation overlap.",
+  "results": [
+    {
+      "case": "A_markdown",
+      "temperature": "cold",
+      "source": "tests/fixtures/unified_markdown/input.md",
+      "inputSha256": "5bf33828a90a0b915ec1de98191568a2b62876d3d394b924cda29cdd99cdf703",
+      "seconds": 7.75848589999805,
+      "exitCode": 0,
+      "externalProcesses": 0,
+      "stages": {
+        "semanticExtraction": {
+          "seconds": 0.0035675999970408157,
+          "calls": 1
+        },
+        "docxBuild": {
+          "seconds": 0.07528060000186088,
+          "calls": 1
+        },
+        "docxParsing": {
+          "seconds": 2.2047523999935947,
+          "calls": 3
+        },
+        "templateParsing": {
+          "seconds": 1.1871635999996215,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.05488399999740068,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 2.62369430000399,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 1.424237400002312,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 2,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_en",
+                  "abstract_paragraph_en",
+                  "keywords_en"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "A_markdown",
+      "temperature": "warm",
+      "source": "tests/fixtures/unified_markdown/input.md",
+      "inputSha256": "5bf33828a90a0b915ec1de98191568a2b62876d3d394b924cda29cdd99cdf703",
+      "seconds": 6.673467599997821,
+      "exitCode": 0,
+      "externalProcesses": 0,
+      "stages": {
+        "semanticExtraction": {
+          "seconds": 0.0035523000042303465,
+          "calls": 1
+        },
+        "docxBuild": {
+          "seconds": 0.06999190000351518,
+          "calls": 1
+        },
+        "docxParsing": {
+          "seconds": 1.0040683000042918,
+          "calls": 3
+        },
+        "repairPlanning": {
+          "seconds": 0.05047339999873657,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 2.986085100004857,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 1.2138769999946817,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 2,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_en",
+                  "abstract_paragraph_en",
+                  "keywords_en"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "B_normal_docx",
+      "temperature": "cold",
+      "source": "profiles/hybrid_fixture/template.docx",
+      "inputSha256": "d2210745c54dea26bdede2e22485306088caa702df796c276c3c1414126e1ccb",
+      "seconds": 4.71841200000199,
+      "exitCode": 0,
+      "externalProcesses": 0,
+      "stages": {
+        "docxParsing": {
+          "seconds": 2.1814675999921747,
+          "calls": 4
+        },
+        "templateParsing": {
+          "seconds": 1.1773885000002338,
+          "calls": 1
+        },
+        "semanticExtraction": {
+          "seconds": 0.0035388000032980926,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.05191699999704724,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 0.13798980000137817,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 1.3742501000015181,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 3,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "section_geometry_mismatch",
+            "details": [
+              {
+                "section": 0,
+                "field": "top",
+                "expectedCm": 1.374,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "bottom",
+                "expectedCm": 0.826,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "left",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "right",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "header",
+                "expectedCm": 1.501,
+                "actualCm": 1.799
+              },
+              {
+                "section": 0,
+                "field": "footer",
+                "expectedCm": 1.75,
+                "actualCm": 1.85
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_cn",
+                  "title_en"
+                ]
+              },
+              {
+                "kind": "front_matter_title_candidate_missing",
+                "paragraphIndex": 3
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "B_normal_docx",
+      "temperature": "warm",
+      "source": "profiles/hybrid_fixture/template.docx",
+      "inputSha256": "d2210745c54dea26bdede2e22485306088caa702df796c276c3c1414126e1ccb",
+      "seconds": 4.23228620000009,
+      "exitCode": 0,
+      "externalProcesses": 0,
+      "stages": {
+        "docxParsing": {
+          "seconds": 1.0520004999998491,
+          "calls": 4
+        },
+        "semanticExtraction": {
+          "seconds": 0.003545999999914784,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.052758099998754915,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 0.13705879999906756,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 2.065016900000046,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 3,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "section_geometry_mismatch",
+            "details": [
+              {
+                "section": 0,
+                "field": "top",
+                "expectedCm": 1.374,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "bottom",
+                "expectedCm": 0.826,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "left",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "right",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "header",
+                "expectedCm": 1.501,
+                "actualCm": 1.799
+              },
+              {
+                "section": 0,
+                "field": "footer",
+                "expectedCm": 1.75,
+                "actualCm": 1.85
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_cn",
+                  "title_en"
+                ]
+              },
+              {
+                "kind": "front_matter_title_candidate_missing",
+                "paragraphIndex": 3
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "C_messy_docx",
+      "temperature": "cold",
+      "source": "tests/samples/messy_student_thesis.docx",
+      "inputSha256": "4bdd1389dfc43877dfb8778cb26d04fc4f74fe2ccf53a12514694f5edd8f7e9d",
+      "seconds": 5.21300400000473,
+      "exitCode": 2,
+      "externalProcesses": 0,
+      "stages": {
+        "docxParsing": {
+          "seconds": 2.343750899999577,
+          "calls": 4
+        },
+        "templateParsing": {
+          "seconds": 1.1880392000020947,
+          "calls": 1
+        },
+        "semanticExtraction": {
+          "seconds": 0.0019432999979471788,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.05124380000052042,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 0.48251860000164015,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 1.5102221999986796,
+          "calls": 1
+        }
+      },
+      "status": "completed_with_hard_failures",
+      "qualityGate": {
+        "passed": false,
+        "hardFailureCount": 1,
+        "warningCount": 3,
+        "hardFailures": [
+          {
+            "type": "missing_header_footer_parts"
+          }
+        ],
+        "warnings": [
+          {
+            "type": "section_geometry_mismatch",
+            "details": [
+              {
+                "section": 0,
+                "field": "top",
+                "expectedCm": 1.374,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "bottom",
+                "expectedCm": 0.826,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "left",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "right",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "header",
+                "expectedCm": 1.501,
+                "actualCm": 1.799
+              },
+              {
+                "section": 0,
+                "field": "footer",
+                "expectedCm": 1.75,
+                "actualCm": 1.85
+              }
+            ]
+          },
+          {
+            "type": "front_matter_preserved_needs_review",
+            "details": [
+              "本科生毕业论文（设计）",
+              "本科生毕业论文（设计）诚信承诺书"
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_cn",
+                  "title_en"
+                ]
+              },
+              {
+                "kind": "front_matter_title_candidate_missing",
+                "paragraphIndex": 0
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "C_messy_docx",
+      "temperature": "warm",
+      "source": "tests/samples/messy_student_thesis.docx",
+      "inputSha256": "4bdd1389dfc43877dfb8778cb26d04fc4f74fe2ccf53a12514694f5edd8f7e9d",
+      "seconds": 4.663670300004014,
+      "exitCode": 2,
+      "externalProcesses": 0,
+      "stages": {
+        "docxParsing": {
+          "seconds": 1.1880119000052218,
+          "calls": 4
+        },
+        "semanticExtraction": {
+          "seconds": 0.0020313000059104525,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.053459700000530574,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 0.4444532999987132,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 2.15846849999798,
+          "calls": 1
+        }
+      },
+      "status": "completed_with_hard_failures",
+      "qualityGate": {
+        "passed": false,
+        "hardFailureCount": 1,
+        "warningCount": 3,
+        "hardFailures": [
+          {
+            "type": "missing_header_footer_parts"
+          }
+        ],
+        "warnings": [
+          {
+            "type": "section_geometry_mismatch",
+            "details": [
+              {
+                "section": 0,
+                "field": "top",
+                "expectedCm": 1.374,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "bottom",
+                "expectedCm": 0.826,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "left",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "right",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "header",
+                "expectedCm": 1.501,
+                "actualCm": 1.799
+              },
+              {
+                "section": 0,
+                "field": "footer",
+                "expectedCm": 1.75,
+                "actualCm": 1.85
+              }
+            ]
+          },
+          {
+            "type": "front_matter_preserved_needs_review",
+            "details": [
+              "本科生毕业论文（设计）",
+              "本科生毕业论文（设计）诚信承诺书"
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_cn",
+                  "title_en"
+                ]
+              },
+              {
+                "kind": "front_matter_title_candidate_missing",
+                "paragraphIndex": 0
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "D_native_assets",
+      "temperature": "cold",
+      "source": "tests/fixtures/docx_hybrid_mixed_confidence_assets/input.docx",
+      "inputSha256": "7fe5c976d52c40a7d7794f7281f79bcdb43a853f2e992346f76c0e6e07c7286c",
+      "seconds": 5.1164962999973795,
+      "exitCode": 0,
+      "externalProcesses": 0,
+      "stages": {
+        "docxParsing": {
+          "seconds": 2.255531999988307,
+          "calls": 4
+        },
+        "templateParsing": {
+          "seconds": 1.1927159999977448,
+          "calls": 1
+        },
+        "semanticExtraction": {
+          "seconds": 0.004172499997366685,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.05240800000319723,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 0.22472769999876618,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 1.5761753999977373,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 4,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "section_geometry_mismatch",
+            "details": [
+              {
+                "section": 0,
+                "field": "top",
+                "expectedCm": 1.374,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "bottom",
+                "expectedCm": 0.826,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "left",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "right",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "header",
+                "expectedCm": 1.501,
+                "actualCm": 1.799
+              },
+              {
+                "section": 0,
+                "field": "footer",
+                "expectedCm": 1.75,
+                "actualCm": 1.85
+              }
+            ]
+          },
+          {
+            "type": "numbering_anomalies",
+            "details": [
+              {
+                "paragraphIndex": 41,
+                "kind": "heading_sequence_or_prefix_mismatch",
+                "text": "一、混合标题",
+                "expectedPrefix": "二、",
+                "actualPrefix": "一、"
+              },
+              {
+                "paragraphIndex": 45,
+                "kind": "heading_sequence_or_prefix_mismatch",
+                "text": "2 实验部分",
+                "expectedPrefix": "3",
+                "actualPrefix": "2"
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_cn",
+                  "title_en"
+                ]
+              },
+              {
+                "kind": "front_matter_title_candidate_missing",
+                "paragraphIndex": 3
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "D_native_assets",
+      "temperature": "warm",
+      "source": "tests/fixtures/docx_hybrid_mixed_confidence_assets/input.docx",
+      "inputSha256": "7fe5c976d52c40a7d7794f7281f79bcdb43a853f2e992346f76c0e6e07c7286c",
+      "seconds": 4.396252300000924,
+      "exitCode": 0,
+      "externalProcesses": 0,
+      "stages": {
+        "docxParsing": {
+          "seconds": 1.021998900003382,
+          "calls": 4
+        },
+        "semanticExtraction": {
+          "seconds": 0.004332200005592313,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.05203840000467608,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 0.2098684999946272,
+          "calls": 1
+        },
+        "finalValidation": {
+          "seconds": 2.0763428999998723,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 4,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "section_geometry_mismatch",
+            "details": [
+              {
+                "section": 0,
+                "field": "top",
+                "expectedCm": 1.374,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "bottom",
+                "expectedCm": 0.826,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "left",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "right",
+                "expectedCm": 2.0,
+                "actualCm": 2.701
+              },
+              {
+                "section": 0,
+                "field": "header",
+                "expectedCm": 1.501,
+                "actualCm": 1.799
+              },
+              {
+                "section": 0,
+                "field": "footer",
+                "expectedCm": 1.75,
+                "actualCm": 1.85
+              }
+            ]
+          },
+          {
+            "type": "numbering_anomalies",
+            "details": [
+              {
+                "paragraphIndex": 41,
+                "kind": "heading_sequence_or_prefix_mismatch",
+                "text": "一、混合标题",
+                "expectedPrefix": "二、",
+                "actualPrefix": "一、"
+              },
+              {
+                "paragraphIndex": 45,
+                "kind": "heading_sequence_or_prefix_mismatch",
+                "text": "2 实验部分",
+                "expectedPrefix": "3",
+                "actualPrefix": "2"
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_cn",
+                  "title_en"
+                ]
+              },
+              {
+                "kind": "front_matter_title_candidate_missing",
+                "paragraphIndex": 3
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    }
+  ]
+}

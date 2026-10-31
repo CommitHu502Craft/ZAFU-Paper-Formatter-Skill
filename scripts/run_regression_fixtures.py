@@ -720,6 +720,8 @@ def run_fixture(fixture_dir: Path, profile: str, output_dir: Path, expected_spec
         fixture_profile,
         "--mode",
         mode,
+        "--pipeline",
+        "legacy",
         "--compliance",
         compliance,
         "--output-dir",

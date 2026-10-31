@@ -11,7 +11,7 @@ TEXT_FIELDS = {
     "className", "teacher", "teacherTitle", "date", "abstractCn", "abstractEn",
     "keywordsCn", "keywordsEn", "frontMatterPdf",
 }
-BOOLEAN_FIELDS = {"cover", "statement"}
+BOOLEAN_FIELDS = {"cover", "statement", "allowBlankFrontmatter"}
 ABSTRACT_HEADINGS = {"摘要": "Cn", "中文摘要": "Cn", "英文摘要": "En", "abstract": "En", "english abstract": "En"}
 KEYWORDS = re.compile(r"^(关键词|关键字|keywords?|key words)\s*[:：]\s*(.*)$", re.I)
 
@@ -39,6 +39,7 @@ def prepare_frontmatter(ir: dict[str, Any], metadata: dict[str, Any], escape: Ca
     for block in ir.get("semanticBlocks") or []:
         text = str(block.get("text") or "").strip()
         identifier = str(block.get("id") or "")
+        text = re.sub(r"^\*\*([^*]+)\*\*", r"\1", text)
         if text == values["title"] and block.get("role") == "front_matter":
             title_blocks.append(identifier)
             continue
@@ -55,8 +56,7 @@ def prepare_frontmatter(ir: dict[str, Any], metadata: dict[str, Any], escape: Ca
             continue
         # Markdown emphasis around the label is presentation, not part of the
         # label. Consume the source block instead of copying it into abstract.
-        keyword_text = re.sub(r"^\*\*([^*]+[:：])\*\*\s*", r"\1 ", text)
-        keyword = KEYWORDS.match(keyword_text)
+        keyword = KEYWORDS.match(text)
         if keyword and language:
             values[f"keywords{language}"] = keyword.group(2)
             consumed.add(identifier)
@@ -79,9 +79,15 @@ def prepare_frontmatter(ir: dict[str, Any], metadata: dict[str, Any], escape: Ca
     if values.get("cover"):
         missing = [key for key in ("title", "author", "academy", "session", "studentNumber", "className", "teacher", "teacherTitle", "date") if not str(values.get(key) or "").strip()]
         if missing:
-            errors.append({"kind": "missing_cover_metadata", "fields": missing})
+            if values.get("allowBlankFrontmatter") and "title" not in missing:
+                warnings.append("Cover fields explicitly left blank: " + ", ".join(missing))
+            else:
+                errors.append({"kind": "missing_cover_metadata", "fields": missing})
     if values.get("statement") and any(not values.get(key) for key in ("title", "author", "date")):
-        errors.append({"kind": "missing_statement_metadata", "message": "Explicit title, author and date are required for an unsigned statement."})
+        if values.get("allowBlankFrontmatter") and values.get("title"):
+            warnings.append("Unsigned statement explicitly includes blank author/date fields; no personal information is inferred.")
+        else:
+            errors.append({"kind": "missing_statement_metadata", "message": "Explicit title, author and date are required for an unsigned statement."})
     commands = [rf"\title{{{{{escape(str(values.get('title') or ''))}}}}}", rf"\author{{{escape(str(values.get('author') or ''))}}}", rf"\date{{{escape(str(values.get('date') or ''))}}}"]
     for field, macro in (("academy", "academy"), ("session", "session"), ("studentNumber", "studentNumber"), ("className", "myClass"), ("titleEn", "entitle")):
         commands.append(rf"\{macro}{{{escape(str(values.get(field) or ''))}}}")

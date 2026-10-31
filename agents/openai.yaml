@@ -1,4 +1,4 @@
 interface:
   display_name: "Thesis Formatter"
   short_description: "Format Word or LaTeX theses with isolated, audited outputs."
-  default_prompt: "Format this thesis through shared ThesisIR, preserve its wording and original file, use Word unless another backend is requested, skip rendering and visual review by default, and report deliverable paths and unresolved risks."
+  default_prompt: "Use $thesis-docx-formatter to format this thesis in Word unless another backend is requested, preserve its wording and original file, insert required template cover and integrity pages verbatim without filling or editing them, add missing body headers, use final quality with actual rendered-page review unless a fast draft is requested, and deliver the formatted thesis with any remaining issues."

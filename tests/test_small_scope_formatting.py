@@ -119,12 +119,21 @@ class HeaderPolicyTests(unittest.TestCase):
         self.assertEqual(files, original_files)
         self.assertEqual(ET.tostring(document), original_document)
 
-    def test_missing_header_is_not_created(self):
+    def test_missing_header_is_created_by_default(self):
         document, files = self.make_package()
         for section in document.iter(qn("sectPr")):
             for reference in list(section):
                 section.remove(reference)
         apply_header_policy(document, files, "School thesis", "fixed", replace_header_text)
+        self.assertEqual(check_header_policy(document, files, "School thesis", "fixed"), [])
+        self.assertEqual(len(list(document.iter(qn("headerReference")))), 2)
+
+    def test_explicit_create_missing_false_keeps_missing_header(self):
+        document, files = self.make_package()
+        for section in document.iter(qn("sectPr")):
+            for reference in list(section):
+                section.remove(reference)
+        apply_header_policy(document, files, "School thesis", "fixed", replace_header_text, create_missing=False)
         self.assertEqual(list(document.iter(qn("headerReference"))), [])
         self.assertEqual(len([name for name in files if name.startswith("word/header")]), 1)
 

@@ -238,7 +238,9 @@ def acquire_output_paragraph(document: Document, state: dict, *, style: Optional
     reusable = bool(state.get("reuse_last_empty_paragraph"))
     if reusable and document.paragraphs:
         paragraph = document.paragraphs[-1]
-        if not (paragraph.text or "").strip():
+        # add_section() leaves the preceding section's closing paragraph here.
+        # Reusing it puts the new heading before its own section break.
+        if not (paragraph.text or "").strip() and paragraph._p.find(docx_qn("w:pPr") + "/" + docx_qn("w:sectPr")) is None:
             if style:
                 paragraph.style = style
             state["reuse_last_empty_paragraph"] = False
@@ -635,6 +637,8 @@ def emit_front_abstract_block(document: Document, block: dict, state: dict) -> N
 
 def emit_thesis_ir_text_block(document: Document, block: dict, state: dict) -> None:
     kind = block.get("kind")
+    if kind == "thematic_break":
+        return
     text = normalize_inline_text(str(block.get("text") or ""))
     if not text:
         return

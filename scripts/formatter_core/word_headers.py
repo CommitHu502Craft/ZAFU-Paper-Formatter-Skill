@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import posixpath
+import copy
 import re
 import xml.etree.ElementTree as ET
 from typing import Callable
@@ -41,17 +42,17 @@ def header_sections(document: ET.Element, files: dict[str, bytes]) -> list[dict]
             re.search(r"\bTOC\b", node.get(qn("instr"), ""), re.IGNORECASE)
             for paragraph in content for node in paragraph.iter(qn("fldSimple"))
         )
-        has_heading = any(
+        has_heading = any(re.match(r"^(?:[1-9]\d*(?:\.\d+){0,2}\s+\S|第[一二三四五六七八九十\d]+章\s*\S)", text.strip()) and not re.search(r"\.{3}|…{2}", text) for text in texts) or any(
             re.fullmatch(r"(?:zafu_heading|Heading|heading)[1-6]", node.get(qn("val"), ""))
             for paragraph, text in zip(paragraphs, texts)
             if re.sub(r"\s+", "", text).lower() not in {"目录", "摘要", "中文摘要", "abstract"}
             for node in paragraph.findall("w:pPr/w:pStyle", NS)
         )
         has_front = any("诚信承诺书" in text or "本科生毕业论文（设计）" in text for text in visible)
-        has_abstract = any(re.match(r"^(?:摘\s*要|中文摘要|Abstract)(?:\s*[:：]|\s*$)", text.strip(), re.I) for text in texts)
+        has_abstract = any(re.match(r"^(?:摘\s*要|中文摘要|Abstract)(?:\s*[:：]|\s+|\s*$)", text.strip(), re.I) for text in texts)
         scope = "unknown"
         if has_toc:
-            scope = "mixed" if has_heading else "toc"
+            scope = "mixed" if has_heading or has_abstract else "toc"
         elif has_front:
             scope = "front_matter"
         elif has_heading or has_abstract or previous_scope == "body":
@@ -67,7 +68,46 @@ def header_sections(document: ET.Element, files: dict[str, bytes]) -> list[dict]
     return result
 
 
-def apply_header_policy(document: ET.Element, files: dict[str, bytes], text: str, mode: str, replace_text: Callable[[bytes, str], bytes], *, create_missing: bool = False) -> list[dict]:
+def separate_toc_and_abstract(document: ET.Element, immutable_prefix: int) -> list[dict]:
+    """Isolate the TOC header without touching the original template pages."""
+    body = document.find("w:body", NS)
+    if body is None:
+        return []
+    paragraphs = body.findall("w:p", NS)
+    for index, paragraph in enumerate(paragraphs):
+        style = paragraph.find("w:pPr/w:pStyle", NS)
+        if index < immutable_prefix or style is None or style.get(qn("val")) != "zafu_title_cn":
+            continue
+        start = index - 1
+        while start >= immutable_prefix and paragraphs[start].find("w:pPr/w:sectPr", NS) is None:
+            start -= 1
+        preceding = paragraphs[start + 1:index]
+        has_toc = any(re.sub(r"\s+", "", "".join(n.text or "" for n in p.iter(qn("t")))) == "目录" or any(re.search(r"\bTOC\b", n.text or "", re.I) for n in p.iter(qn("instrText"))) or any(re.search(r"\bTOC\b", n.get(qn("instr"), ""), re.I) for n in p.iter(qn("fldSimple"))) for p in preceding)
+        if not has_toc or not preceding:
+            return []
+        closing = next((p.find("w:pPr/w:sectPr", NS) for p in paragraphs[index:] if p.find("w:pPr/w:sectPr", NS) is not None), None)
+        if closing is None:
+            closing = body.find("w:sectPr", NS)
+        if closing is None:
+            return []
+        new_section = copy.deepcopy(closing)
+        kind = new_section.find("w:type", NS)
+        if kind is None:
+            kind = ET.SubElement(new_section, qn("type"))
+        kind.set(qn("val"), "nextPage")
+        ppr = paragraphs[index - 1].find("w:pPr", NS)
+        if ppr is None:
+            ppr = ET.Element(qn("pPr"))
+            paragraphs[index - 1].insert(0, ppr)
+        ppr.append(new_section)
+        numbering = closing.find("w:pgNumType", NS)
+        if numbering is not None:
+            numbering.attrib.pop(qn("start"), None)  # abstract continues the TOC's Roman sequence
+        return [{"action": "separate_toc_abstract_headers", "paragraphIndex": index - 1}]
+    return []
+
+
+def apply_header_policy(document: ET.Element, files: dict[str, bytes], text: str, mode: str, replace_text: Callable[[bytes, str], bytes], *, create_missing: bool = True) -> list[dict]:
     if mode == "preserve":
         return []
     sections = header_sections(document, files)
@@ -79,6 +119,12 @@ def apply_header_policy(document: ET.Element, files: dict[str, bytes], text: str
     for section in sections:
         if create_missing and section["scope"] in {"body", "toc"} and "default" not in section["headers"]:
             section["headers"]["default"] = {"id": None, "path": None}
+        if create_missing and section["scope"] == "body":
+            if section["sectPr"].find("w:titlePg", NS) is not None:
+                section["headers"].setdefault("first", {"id": None, "path": None})
+            settings = ET.fromstring(files.get("word/settings.xml", b'<settings/>'))
+            if settings.find("w:evenAndOddHeaders", NS) is not None:
+                section["headers"].setdefault("even", {"id": None, "path": None})
         for variant, header in section["headers"].items():
             path = header["path"]
             rel_id = header["id"]
@@ -126,15 +172,28 @@ def apply_header_policy(document: ET.Element, files: dict[str, bytes], text: str
     return changes
 
 
-def initialize_fresh_footers(document: ET.Element, files: dict[str, bytes], latin_font: str = "Times New Roman") -> list[dict]:
+def initialize_fresh_footers(document: ET.Element, files: dict[str, bytes], latin_font: str = "Times New Roman", *, missing_only: bool = False) -> list[dict]:
     """Give unambiguous generated non-cover sections independent PAGE fields."""
     relationships = ET.fromstring(files["word/_rels/document.xml.rels"])
     content_types = ET.fromstring(files["[Content_Types].xml"])
     used_ids = {item.get("Id") for item in relationships}
     changes = []
+    inherited_footers = {}
+    footer_targets = {item.get("Id"): posixpath.normpath(posixpath.join("word", item.get("Target", ""))).lstrip("/") for item in relationships if item.get("Type", "").endswith("/footer")}
     for section in header_sections(document, files):
+        for ref in section["sectPr"].findall("w:footerReference", NS):
+            inherited_footers[ref.get(qn("type"), "default")] = ref.get(f"{{{NS['r']}}}id")
         if section["scope"] not in {"body", "toc"}:
             continue
+        if missing_only:
+            populated = False
+            for ref_id in inherited_footers.values():
+                data = files.get(footer_targets.get(ref_id), b"")
+                if data:
+                    footer = ET.fromstring(data)
+                    populated = populated or bool("".join(footer.itertext()).strip()) or bool(footer.findall(".//w:fldSimple", NS))
+            if populated:
+                continue
         number = 1
         while f"word/footer_formatter_{number}.xml" in files or f"rIdFormatterFooter{number}" in used_ids:
             number += 1
@@ -159,12 +218,19 @@ def initialize_fresh_footers(document: ET.Element, files: dict[str, bytes], lati
             "PartName": f"/{path}", "ContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
         })
         sectpr = section["sectPr"]
-        for node in list(sectpr.findall("w:footerReference", NS)) + list(sectpr.findall("w:titlePg", NS)):
+        for node in list(sectpr.findall("w:footerReference", NS)) + ([] if missing_only else list(sectpr.findall("w:titlePg", NS))):
             sectpr.remove(node)
         reference = ET.Element(qn("footerReference"), {qn("type"): "default", f"{{{NS['r']}}}id": rel_id})
         # References precede page geometry in sectPr.
         insert_at = len(sectpr.findall("w:headerReference", NS))
         sectpr.insert(insert_at, reference)
+        if missing_only and sectpr.find("w:titlePg", NS) is not None:
+            sectpr.insert(insert_at + 1, ET.Element(qn("footerReference"), {qn("type"): "first", f"{{{NS['r']}}}id": rel_id}))
+        settings = ET.fromstring(files.get("word/settings.xml", b'<settings/>'))
+        if missing_only and settings.find("w:evenAndOddHeaders", NS) is not None:
+            sectpr.insert(insert_at + 1, ET.Element(qn("footerReference"), {qn("type"): "even", f"{{{NS['r']}}}id": rel_id}))
+        footer_targets[rel_id] = path
+        inherited_footers = {"default": rel_id}
         changes.append({"action": "initialize_fresh_footer", "sectionIndex": section["index"], "target": path})
     files["word/_rels/document.xml.rels"] = ET.tostring(relationships, encoding="utf-8", xml_declaration=True)
     files["[Content_Types].xml"] = ET.tostring(content_types, encoding="utf-8", xml_declaration=True)
@@ -177,16 +243,27 @@ def check_header_policy(document: ET.Element, files: dict[str, bytes], text: str
     issues = []
     for section in header_sections(document, files):
         scope = section["scope"]
+        if scope == "body" and text:
+            required_variants = {"default"}
+            settings = ET.fromstring(files.get("word/settings.xml", b'<settings/>'))
+            if settings.find("w:evenAndOddHeaders", NS) is not None:
+                required_variants.add("even")
+            if section["sectPr"].find("w:titlePg", NS) is not None:
+                required_variants.add("first")
+            for variant in required_variants - section["headers"].keys():
+                issues.append({"type": "missing_body_header", "sectionIndex": section["index"], "variant": variant})
         if scope in {"mixed", "unknown"} and section["headers"]:
             issues.append({"type": "header_scope_needs_review", "sectionIndex": section["index"], "scope": scope})
         for variant, header in section["headers"].items():
             path = header["path"]
             if not path or path not in files:
+                if scope == "body" and text:
+                    issues.append({"type": "missing_body_header", "sectionIndex": section["index"], "variant": variant})
                 continue
             root = ET.fromstring(files[path])
             actual = "".join(node.text or "" for node in root.iter(qn("t"))).strip()
             if scope == "toc" and (actual or root.find(".//w:pBdr", NS) is not None or root.find(".//w:drawing", NS) is not None):
                 issues.append({"type": "toc_header_not_empty", "sectionIndex": section["index"], "variant": variant})
-            elif scope == "body" and actual and text and actual != text:
+            elif scope == "body" and text and actual != text:
                 issues.append({"type": "header_text_mismatch", "sectionIndex": section["index"], "variant": variant, "expected": text, "actual": actual})
     return issues

@@ -69,7 +69,7 @@ def collect(output_dir: Path) -> Dict[str, Any]:
     render = read_json(report_path("renderValidationReport", "render_validation/render_validation_report.json"))
     if not render:
         render = read_json(output_dir / "render_validation_report.json")
-    semantic = read_json(output_dir / "render_validation" / "semantic_pages.json")
+    semantic = read_json(Path(render["semanticPagesPath"])) if render.get("semanticPagesPath") else {}
     repair_execution = read_json(report_path("repairExecution", "repair_execution.json"))
     refinement = read_json(report_path("visualRefinementExecution", "visual_refinement_execution.json"))
     asset_preservation = read_json(report_path("assetPreservation", "asset_preservation.json"))
@@ -91,11 +91,13 @@ def collect(output_dir: Path) -> Dict[str, Any]:
 
     manual_checks: List[str] = []
     if render.get("status") == "skipped":
-        manual_checks.append("默认未导出 PDF、未检查分页布局、未进行视觉审阅；结构检查不代表视觉效果通过。")
+        manual_checks.append("本次未请求 PDF 和分页检查；结构检查不代表视觉效果通过。")
     elif render.get("status") != "ok":
         manual_checks.append("本机没有可用的 PDF 渲染工具,请自行打开 Word 检查整体版面。")
-    else:
+    elif not (manifest.get("visualAcceptance") or {}).get("visualReviewed"):
         manual_checks.append("PDF 已生成，但未进行 Agent 视觉审阅。")
+    else:
+        manual_checks.append("已完成记录中的关键页视觉审阅；仍需处理报告中的未解决问题。")
     manual_checks.append("在 Word 中打开后按 Ctrl+A 再按 F9(或右键目录→更新域→更新整个目录)刷新目录页码。")
     if any(f.get("type") == "key_region_not_located" for f in visual_findings):
         missing = [f.get("region") for f in visual_findings if f.get("type") == "key_region_not_located"]

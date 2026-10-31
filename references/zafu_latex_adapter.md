@@ -6,6 +6,8 @@ LaTeX 排版来源：[Stolorzs/ZafuTemplatePublic](https://github.com/Stolorzs/Z
 
 ## 封面与前置页
 
+本排版工作流以 SKILL.md 的封面保护规则为准：只使用已确认来源的 `frontMatterPdf` 原样插入，禁止填写、改写或调用宏重画封面/诚信页。下文 `cover`、`statement` 及字段映射说明仅描述适配器保留的兼容能力，不是当前任务可执行的封面处理步骤；不要使用这些选项绕过原样插入要求。
+
 ```powershell
 python scripts/thesis_format.py '论文.md' --backend latex --latex-metadata 'metadata.json'
 ```
@@ -32,6 +34,7 @@ python scripts/thesis_format.py '论文.md' --backend latex --latex-metadata 'me
 - `cover: true` 调用原始 `\customCover`；上述封面字段缺失时阻止 PDF 交付。校徽/校名图片固定版本下载、校验、复制进工程并记录来源。
 - `statement: true` 才调用原始 `\makestatement`；必须有题目、作者、日期，签名位置为空。不自动勾选承诺，不伪造签名。
 - 默认 `cover`、`statement` 均关闭；日期不自动使用当天日期。
+- 明确需要模板空白前置页时，使用 `{"cover": true, "statement": true, "allowBlankFrontmatter": true}`。题目仍须来自原稿或显式元数据，其余未知字段留空并报告警告；签名始终留空。不修改默认的完整信息校验，也不自动填入姓名、日期或英文题目。
 - 需要保留学校原始未填写封面、诚信页时，可显式提供 `"frontMatterPdf": "front-matter.pdf"`，路径相对元数据文件解析。适配器校验非空 PDF、复制并记录 SHA256，以 `pdfpages` 原样插入，不填写个人信息、不重绘页面。此方式不得同时启用 `cover` 或 `statement` 宏。
 - 源文档中独立的中文/英文摘要标题、摘要段落和关键词分别映射到 `\ZhAbstract`、`\EnAbstract`，随后调用类的 `\customContent` 和 `\mainmatter`。不重复输出已映射的源块。
 - 支持标题 `摘要`、`中文摘要`、`Abstract`、`English Abstract`、`英文摘要`，以及独立段落 `摘要：内容`。关键词使用 `关键词：`、`Keywords:` 等标签。

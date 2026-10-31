@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import copy
+import time
 import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ from formatter_core.reports import write_summary
 from formatter_core.reference_format import check_reference_format
 from formatter_backends.latex import run_latex
 from formatter_backends.word import common_flags, repair_commands
+from formatter_core.session import analysis_session, run_in_process
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -165,7 +167,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", default="zafu_2022", choices=sorted(PROFILES), help="Formatting profile")
     parser.add_argument(
         "--mode",
-        default="conservative-repair",
+        default=None,
         choices=["audit-only", "conservative-repair", "rebuild"],
         help=argparse.SUPPRESS,
     )
@@ -177,7 +179,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--latex-metadata", help="Explicit JSON metadata for external CLS front matter; LaTeX only")
     parser.add_argument("--latex-bibliography", help="Explicit BibTeX file; LaTeX-only GB/T 7714-2015 author-year citations")
     parser.add_argument("--compile-timeout", type=int, default=120, help="Timeout in seconds per TeX compilation pass")
-    parser.add_argument("--check", choices=["structural", "layout", "visual"], default="structural", help="Default: no PDF rendering or page images")
+    parser.add_argument("--quality", choices=["fast", "final"], default="final", help="Final requests PDF layout and targeted review previews; fast skips rendering")
+    parser.add_argument("--conservative", action="store_true", help="Force preservation of native DOCX regions")
+    parser.add_argument("--pipeline", choices=["auto", "legacy"], default="auto", help="Expert compatibility: legacy retains detailed audit/preflight artifacts")
+    parser.add_argument("--render-backend", choices=["auto", "word", "libreoffice", "wps"], default="auto")
+    parser.add_argument("--check", choices=["structural", "layout", "visual"], default=None, help="Explicit override of quality check level (legacy compatible)")
     parser.add_argument("--export-pdf", action="store_true", help="Export Word PDF independently of visual review")
     parser.add_argument("--allow-structural-rebuild", action="store_true", help="Explicitly allow DOCX whole-document rebuild and template front-matter replacement")
     parser.add_argument("--header-mode", choices=["fixed", "thesis-title", "preserve"], help="Word header text policy; default from profile")
@@ -199,6 +205,10 @@ def parse_args() -> argparse.Namespace:
         help="Optional visual_refinement_plan.json; when given, a single whitelisted visual refinement pass runs after the first repair and the result is re-rendered",
     )
     args = parser.parse_args()
+    args.explicit_mode = args.mode is not None
+    args.mode = args.mode or "conservative-repair"
+    args.conservative = args.conservative or args.explicit_mode and args.mode == "conservative-repair"
+    args.check = args.check or ("visual" if args.quality == "final" else "structural")
     if args.backend == "latex" and (args.header_mode or args.header_text):
         parser.error("Header options are Word-only; the external CLS manages LaTeX headers")
     if args.header_text is not None and args.header_mode not in {None, "fixed"}:
@@ -226,9 +236,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_step(command: List[str], workdir: Path) -> None:
-    completed = subprocess.run(command, cwd=str(workdir), check=False)
-    if completed.returncode != 0:
-        raise SystemExit(completed.returncode)
+    run_in_process(command, workdir)
 
 
 def source_kind(path: Path) -> str:
@@ -973,7 +981,7 @@ def finalize_outputs(output_dir: Path, input_path: Path, workspace: Workspace, m
     if render_report.get("contactSheets"):
         deliverables["contactSheets"] = render_report["contactSheets"]
 
-    critical_src = render_output_dir(output_dir) / "critical_pages"
+    critical_src = Path(render_report.get("previewDir") or render_output_dir(output_dir) / "critical_pages")
     if critical_src.exists():
         deliverables["criticalPagesDir"] = str(critical_src)
 
@@ -1011,7 +1019,8 @@ def finish_run(args: argparse.Namespace, workspace: Workspace, manifest: Dict[st
     if args.backend != "latex":
         manifest.setdefault("backendResults", {})["word"] = {
             "status": "ok" if deliverables.get("docx") else "audit_only" if manifest.get("effectiveMode") == "audit-only" else "blocked",
-            "qualityGate": manifest.get("qualityGate"), "visualReviewed": False,
+            "qualityGate": manifest.get("qualityGate"), "visualReviewed": (manifest.get("visualAcceptance") or {}).get("visualReviewed", False),
+            "visualAcceptance": manifest.get("visualAcceptance"),
         }
     if latex_result is not None:
         deliverables.update(latex_result.get("deliverables") or {})
@@ -1034,8 +1043,17 @@ def finish_run(args: argparse.Namespace, workspace: Workspace, manifest: Dict[st
         elif compilation.get("status") != "ok" and manifest.get("status") == "completed":
             manifest["status"] = "completed_source_only" if args.backend == "latex" else "completed_with_warnings"
     manifest["deliverables"] = deliverables
+    if args.backend != "latex":
+        from docx_ooxml import parse_document
+        from formatter_core.sections import inspect_requirements
+        rules = read_yaml(workspace.work / "effective_rules.yaml")
+        if workspace.source.suffix.lower() == ".docx" and not manifest.get("documentRequirements"):
+            manifest["documentRequirements"] = inspect_requirements(parse_document(str(workspace.source), rules_path=str(workspace.work / "effective_rules.yaml"), detail="semantic"), rules)
+        final_docx = Path(deliverables["docx"]) if deliverables.get("docx") else workspace.work / "repaired.docx"
+        if final_docx.is_file() and not manifest.get("documentRequirementsAfter"):
+            manifest["documentRequirementsAfter"] = inspect_requirements(parse_document(str(final_docx), rules_path=str(workspace.work / "effective_rules.yaml"), detail="semantic"), rules)
     if args.backend != "latex" and thesis_ir_output_path(workspace.work).is_file():
-        reference_report = check_reference_format(read_json(thesis_ir_output_path(workspace.work)))
+        reference_report = check_reference_format(read_json(thesis_ir_output_path(workspace.work)), read_yaml(workspace.work / "effective_rules.yaml"))
         reference_path = workspace.reports / "reference-format.json"
         reference_path.write_text(json.dumps(reference_report, ensure_ascii=False, indent=2), encoding="utf-8")
         manifest.setdefault("artifacts", {})["referenceFormatReport"] = str(reference_path)
@@ -1049,7 +1067,15 @@ def finish_run(args: argparse.Namespace, workspace: Workspace, manifest: Dict[st
 
 def print_cli_summary(manifest: Dict[str, object], deliverables: Dict[str, object], output_dir: Path) -> None:
     quality_gate = manifest.get("qualityGate") or {}
-    lines = ["", "=" * 46, "论文排版完成"]
+    remaining = (manifest.get("documentRequirementsAfter") or {}).get("missing") or []
+    title = "排版结果已生成"
+    if quality_gate.get("hardFailureCount"):
+        title = "排版未完成：文档校验仍有问题"
+    elif remaining:
+        title = "已生成排版稿，仍有缺项"
+    lines = ["", "=" * 46, title]
+    if remaining:
+        lines.append("  尚缺: " + "、".join(item["label"] for item in remaining))
     if deliverables.get("docx"):
         lines.append(f"  Word 文件: {deliverables['docx']}")
     else:
@@ -1057,7 +1083,7 @@ def print_cli_summary(manifest: Dict[str, object], deliverables: Dict[str, objec
     if deliverables.get("pdf"):
         lines.append(f"  PDF 预览: {deliverables['pdf']}")
     else:
-        lines.append("  Word PDF: 未交付(默认不导出,或转换不可用/校验未通过)")
+        lines.append("  Word PDF: 未交付(未请求、转换不可用或校验未通过)")
     if deliverables.get("latexSource"):
         lines.append(f"  LaTeX 工程: {deliverables['latexSource']}")
     if deliverables.get("latexPdf"):
@@ -1065,7 +1091,12 @@ def print_cli_summary(manifest: Dict[str, object], deliverables: Dict[str, objec
     elif manifest.get("backend") in {"latex", "both"}:
         compilation = ((manifest.get("backendResults") or {}).get("latex") or {}).get("compilation") or {}
         lines.append(f"  LaTeX 编译: {compilation.get('status')} ({compilation.get('reason') or '见报告'})")
-    lines.append("  视觉审阅: 未执行;结构校验不代表分页和视觉效果已经通过")
+    if (manifest.get("visualAcceptance") or {}).get("visualReviewed"):
+        lines.append("  视觉审阅: 已执行，具体问题见报告")
+    else:
+        lines.append("  视觉审阅: 未执行，实际分页与版面尚未核实")
+    if manifest.get("deliveryStatus") == "candidate_pending_visual_review":
+        lines.append("  交付状态: 待视觉复核的候选成品")
     if deliverables.get("reviewReport"):
         lines.append(f"  检查报告: {deliverables['reviewReport']}")
     sheets = deliverables.get("contactSheets") or []
@@ -1090,9 +1121,9 @@ def print_cli_summary(manifest: Dict[str, object], deliverables: Dict[str, objec
         if hard:
             lines.append(f"  质量门: {hard} 个硬性问题、{warn} 个警告(结果仍已生成,请查看报告)")
         else:
-            lines.append(f"  质量门: 通过({warn} 个警告,不影响交付)")
+            lines.append(f"  校验: 无硬性问题，另有 {warn} 个具体提示需核对")
     if manifest.get("backend") != "latex":
-        lines.append("  提示: 在 Word 中打开后请更新目录域(Ctrl+A → F9),并核对封面个人信息。")
+        lines.append("  提示: 核对实际目录页码；模板封面及诚信页原样保留，禁止填写或修改。")
     lines.append("=" * 46)
     print("\n".join(lines))
 
@@ -1155,6 +1186,7 @@ def execute(args: argparse.Namespace, workspace: Workspace, manifest: Dict[str, 
     manifest["backend"] = args.backend
     manifest["latexOptions"] = {"noCompile": args.no_compile, "compileTimeout": args.compile_timeout, "engine": args.latex_engine}
     manifest["checkPolicy"] = check_policy.summary()
+    manifest["quality"] = args.quality
     kind = manifest["sourceKind"]
     evidence_cmd = evidence_command(input_path, profile, output_dir)
     numbering_cmd = numbering_command(output_dir)
@@ -1179,6 +1211,11 @@ def execute(args: argparse.Namespace, workspace: Workspace, manifest: Dict[str, 
         update_manifest_with_outputs(manifest, input_path, output_dir)
         write_manifest(output_dir, manifest, commands)
         print(json.dumps({"manifest": str(workspace.manifest_path), "commandCount": len(commands)}, ensure_ascii=False))
+        return
+
+    if args.pipeline != "legacy" and args.mode != "audit-only" and not args.allow_structural_rebuild:
+        from formatter_core.production import run
+        run(args, workspace, manifest, profile, check_policy, sys.modules[__name__])
         return
 
     run_step(evidence_cmd, ROOT)
@@ -1254,6 +1291,8 @@ def execute(args: argparse.Namespace, workspace: Workspace, manifest: Dict[str, 
     write_manifest(output_dir, manifest, pipeline_prefix_commands + commands)
 
     for command in commands:
+        if command[1].endswith("validate_docx.py"):
+            command.extend(["--render-backend", args.render_backend])
         run_step(command, ROOT)
 
     repair_plan_path = output_dir / "repair_plan.json"
@@ -1269,12 +1308,9 @@ def execute(args: argparse.Namespace, workspace: Workspace, manifest: Dict[str, 
     if kind == "docx" and effective_mode != "audit-only" and str(strategy_report.get("chosenStrategy") or "") == "hybrid_rebuild":
         refresh_hybrid_execution_report(output_dir, input_path, strategy_report)
 
-    if args.visual_refinement_plan:
-        refinement_result = run_visual_refinement_pass(output_dir, Path(args.visual_refinement_plan).resolve())
-        if refinement_result is not None:
-            manifest["visualRefinement"] = refinement_result
-            run_step(commands[-1], ROOT)
-            commands.append(list(commands[-1]))
+    if args.mode != "audit-only":
+        from formatter_core.visual import complete_visual_workflow
+        complete_visual_workflow(args, workspace, manifest, commands[-1], sys.modules[__name__])
 
     review_summary = build_review_summary(output_dir, manifest)
     if review_summary is not None:
@@ -1326,7 +1362,11 @@ def main() -> None:
     }
     workspace.write_manifest(manifest)
     try:
-        execute(args, workspace, manifest)
+        started = time.perf_counter()
+        with analysis_session(workspace.root.parent / ".template-cache") as session:
+            execute(args, workspace, manifest)
+            manifest["performance"] = {**session.metrics, "endToEndSeconds": time.perf_counter() - started}
+            workspace.write_manifest(manifest)
     except (Exception, SystemExit) as error:
         manifest["status"] = "failed"
         manifest["error"] = {"type": type(error).__name__, "message": str(error)}

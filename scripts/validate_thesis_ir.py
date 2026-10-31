@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 
 ALLOWED_FORMATS = {"docx", "markdown", "text"}
-ALLOWED_KINDS = {"heading", "paragraph", "caption", "reference", "image", "table", "equation", "page_break"}
+ALLOWED_KINDS = {"heading", "paragraph", "caption", "reference", "image", "table", "equation", "page_break", "thematic_break"}
 
 
 def validate(payload: Dict[str, Any]) -> Dict[str, Any]:

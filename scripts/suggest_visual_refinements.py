@@ -68,19 +68,6 @@ def suggest_actions(
                     }
                 )
                 continue
-        elif kind == "caption_possibly_split_from_asset":
-            caption_text = str(finding.get("captionText") or "")
-            index = find_paragraph_by_text(paragraph_texts, caption_text)
-            if index is not None and index > 0:
-                actions.append(
-                    {
-                        "type": "set_keep_with_next",
-                        "target": {"paragraphIndex": index - 1},
-                        "reason": f"第 {finding.get('page')} 页题注与图表分离,前一段保持与题注同页",
-                        "confidence": 0.7,
-                    }
-                )
-                continue
         unmapped.append(finding)
     return {"actions": actions, "unmappedFindings": unmapped}
 
@@ -96,6 +83,8 @@ def main() -> None:
     findings = manifest.get("visualFindings") or []
     paragraph_texts = load_paragraph_texts(Path(args.docx))
     plan = suggest_actions(findings, paragraph_texts)
+    from formatter_core.workspace import file_digest
+    plan["candidateSha256"] = file_digest(Path(args.docx))
     plan["source"] = "suggest_visual_refinements(text_and_geometry_only)"
     Path(args.output).write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"suggestedActions": len(plan["actions"]), "unmappedFindings": len(plan["unmappedFindings"])}, ensure_ascii=False))

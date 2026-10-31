@@ -13,9 +13,10 @@ This profile packages the current Zhejiang A&F thesis defaults into a profile-or
 
 ## Default mode
 
-- Preferred mode: `conservative-repair`
-- High-risk polluted input: downgrade to `audit-only`
-- Markdown or TXT input: route to `rebuild`
+- Ordinary formatting: `--quality final`, with rendered-page inspection by the Agent; use `--quality fast` only for an explicitly requested quick draft.
+- DOCX: normalize safe regions and preserve complex native objects; do not treat preserved or deferred regions as already compliant.
+- Markdown or TXT: build a new document using the selected template and rules.
+- `audit-only` is the explicit read-only expert route. Risk findings identify regions needing follow-up; they do not automatically cancel ordinary formatting of safe regions.
 
 ## Safe subset defaults
 
@@ -25,15 +26,16 @@ Allowed automatic repairs:
 - high-confidence caption styling
 - table and inline-image alignment normalization
 - bibliography indent repair
-- known-template header text normalization
+- creation of missing body/abstract headers and normalization of empty/existing headers, with shared parts isolated from protected front pages
+- verbatim insertion of missing required template pages and necessary header/page-number section isolation, following SKILL.md's composition and preservation checks
 
 Blocked by default:
 - any text write inside the template-derived cover and integrity pages, including
-  thesis-title inference or population; insert these two pages verbatim and leave
-  all title/personal fields for manual completion
+  thesis-title inference or population; insert these two pages verbatim and keep
+  all blank fields unchanged, without proposing form filling as a repair
 - bibliography mode conversion
 - numbering rebuild
-- front-matter rebuild
+- replacement or rewriting of existing cover/integrity pages; missing-page insertion is handled separately above
 - field/bookmark reconstruction
 - floating-image conversion
 

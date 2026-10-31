@@ -5,7 +5,7 @@ Full technical reference for modes, risk classes, validation layers, contracts, 
 
 ## Current defaults and migration
 
-The current dispatcher uses isolated run workspaces and independent Word/LaTeX writers. Structural checks are the default; PDF export, layout analysis and preview generation are opt-in. The following sections retain historical Word engine details, not the current default product workflow. For current output paths, status handling and backend boundaries, read [Backend and Workspace Contract](backend_and_workspace_contract.md).
+The current dispatcher uses isolated run workspaces and independent Word/LaTeX writers. Final quality requests rendering and visual review by default; fast quality uses structural checks. The following sections retain historical Word engine details. Read [Formatting-first architecture](formatting_first_architecture.md) for the current routes and [Backend and Workspace Contract](backend_and_workspace_contract.md) for output paths and status handling.
 
 ## 1. Purpose and scope
 

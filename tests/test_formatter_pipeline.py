@@ -28,6 +28,18 @@ import render_validate_docx as rendering
 from generate_review_report import _rel
 
 
+class ProseLineBreakTests(unittest.TestCase):
+    def test_english_words_and_sentence_punctuation_keep_natural_breaks(self) -> None:
+        text = "biodiversity conservation. early-warning flight-reproduction"
+        self.assertEqual(render_inline(text, [], "prose", break_code=True), text)
+
+    def test_accession_retains_breaks_without_detaching_period(self) -> None:
+        rendered = render_inline("GCA_123456789. next", [], "accession", break_code=True)
+        self.assertIn(r"\allowbreak{}", rendered)
+        self.assertTrue(rendered.endswith("9. next"))
+        self.assertNotIn(r".\allowbreak{}", rendered)
+
+
 class WorkspaceTests(unittest.TestCase):
     def test_names_are_safe_and_preserve_unicode(self) -> None:
         self.assertEqual(safe_name("CON"), "thesis-CON")
@@ -198,6 +210,10 @@ class LatexTests(unittest.TestCase):
         self.assertIn(r"\(\alpha_1\)", rendered)
         self.assertIn(r"\textbackslash{}input", rendered)
         self.assertEqual(issues[0]["kind"], "unsafe_or_unsupported_math")
+        math_issues = []
+        normalized = render_inline(r"$\arg\max_x f(x)$", math_issues, "argmax")
+        self.assertIn(r"\operatorname{arg\,max}_x", normalized)
+        self.assertEqual(math_issues, [])
 
     def test_inline_images_are_reported_instead_of_silently_omitted(self) -> None:
         issues = []
@@ -356,17 +372,18 @@ class CliAcceptanceTests(unittest.TestCase):
         path = max(manifests, key=lambda candidate: candidate.stat().st_mtime_ns)
         return result, json.loads(path.read_text(encoding="utf-8")), path
 
-    def test_both_routes_share_ir_and_default_has_no_pdf_or_png(self) -> None:
+    def test_both_routes_share_ir_and_fast_has_no_pdf_or_png(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "论文.md"
             source.write_text("# 测试论文\n\n# 摘要\n\n本文摘要。\n\n关键词：测试\n\n# 1 引言\n\n正文。\n\n# 参考文献\n\n[1] Example.\n", encoding="utf-8")
             original = source.read_bytes()
-            result, manifest, path = self.run_cli(source, Path(directory) / "output", "--backend", "both", "--no-compile")
+            result, manifest, path = self.run_cli(source, Path(directory) / "output", "--backend", "both", "--no-compile", "--quality", "fast")
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(manifest["status"], "completed_with_warnings")
             root = path.parent
             self.assertEqual(len(list(root.rglob("thesis_ir.json"))), 1)
-            self.assertEqual(sum("scripts/thesis_ir.py" in command for command in manifest["commands"]), 1)
+            self.assertEqual(manifest["semanticExtractionCount"], 1)
+            self.assertFalse(any("scripts/inspect_docx.py" in command or "scripts/preflight_semantic_normalization.py" in command for command in manifest["commands"]))
             self.assertEqual(list(root.rglob("*.pdf")), [])
             self.assertEqual(list(root.rglob("*.png")), [])
             self.assertTrue((root / manifest["deliverables"]["docx"]).is_file())

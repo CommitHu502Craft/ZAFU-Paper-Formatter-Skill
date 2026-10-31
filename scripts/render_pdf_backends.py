@@ -2,9 +2,10 @@
 """DOCX -> PDF conversion backends.
 
 Order of preference:
-1. LibreOffice (soffice) headless conversion.
-2. Microsoft Word COM automation via PowerShell (Windows only, optional).
-3. WPS Office COM automation via PowerShell (Windows only, optional).
+1. Microsoft Word COM automation (Windows only, optional).
+2. WPS Office COM automation (Windows only, optional).
+3. LibreOffice headless conversion.
+Explicit backend selection never silently switches engines.
 
 All backends are optional; callers must tolerate a None result and keep
 producing the DOCX deliverable without a PDF.
@@ -103,7 +104,7 @@ def _convert_via_com(progid: str, docx_path: Path, pdf_path: Path, timeout_sec: 
     return {"ok": False, "reason": stdout or (completed.stderr or "").strip() or f"{progid} conversion failed"}
 
 
-def convert_docx_to_pdf(docx_path: Path, output_dir: Path, timeout_sec: int = 180) -> Dict[str, Any]:
+def convert_docx_to_pdf(docx_path: Path, output_dir: Path, timeout_sec: int = 180, *, backend: str = "auto") -> Dict[str, Any]:
     """Try all available backends; return a report describing what happened."""
     docx_path = Path(docx_path).resolve()
     output_dir = Path(output_dir).resolve()
@@ -111,7 +112,20 @@ def convert_docx_to_pdf(docx_path: Path, output_dir: Path, timeout_sec: int = 18
     pdf_path = output_dir / f"{docx_path.stem}.pdf"
     attempts = []
 
-    soffice = detect_libreoffice()
+    if backend not in {"auto", "word", "libreoffice", "wps"}:
+        raise ValueError(f"Unknown PDF backend: {backend}")
+    # Auto targets the editor used for the final Word deliverable on Windows.
+    if backend in {"auto", "word", "wps"} and sys.platform == "win32":
+        engines = [("word", "Word.Application"), ("wps", "KWPS.Application")]
+        if backend != "auto":
+            engines = [item for item in engines if item[0] == backend]
+        for name, progid in engines:
+            result = _convert_via_com(progid, docx_path, pdf_path, timeout_sec)
+            if result.get("ok"):
+                return {"available": True, "backend": name + "_com", "backendPath": progid, "pdfPath": str(pdf_path), "status": "ok", "reason": None, "attempts": attempts}
+            attempts.append({"backend": name, "reason": result.get("reason")})
+
+    soffice = detect_libreoffice() if backend in {"auto", "libreoffice"} else None
     if soffice:
         command = [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(docx_path)]
         try:
@@ -132,30 +146,12 @@ def convert_docx_to_pdf(docx_path: Path, output_dir: Path, timeout_sec: int = 18
     else:
         attempts.append({"backend": "libreoffice", "reason": "soffice not found in PATH"})
 
-    if sys.platform == "win32":
-        for backend_name, progid in (("word_com", "Word.Application"), ("wps_com", "KWPS.Application")):
-            result = _convert_via_com(progid, docx_path, pdf_path, timeout_sec)
-            if result.get("ok"):
-                return {
-                    "available": True,
-                    "backend": backend_name,
-                    "backendPath": progid,
-                    "pdfPath": str(pdf_path),
-                    "status": "ok",
-                    "reason": None,
-                    "attempts": attempts,
-                }
-            attempts.append({"backend": backend_name, "reason": result.get("reason")})
-            if not result.get("unavailable"):
-                # Backend exists but conversion failed; still try the next one.
-                continue
-
     return {
         "available": False,
         "backend": None,
         "backendPath": None,
         "pdfPath": None,
         "status": "unavailable",
-        "reason": "No DOCX->PDF backend succeeded (tried LibreOffice, Word COM, WPS COM)",
+        "reason": f"No DOCX->PDF backend succeeded for requested backend: {backend}",
         "attempts": attempts,
     }

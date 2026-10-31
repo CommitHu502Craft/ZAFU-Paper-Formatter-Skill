@@ -48,6 +48,9 @@ HARD_FAIL_ISSUE_TYPES = {
     "excessive_page_breaks",
     "field_structure_issues",
     "reference_entry_count_mismatch",
+    "content_integrity_failure",
+    "asset_integrity_failure",
+    "package_relationship_failure",
 }
 
 
@@ -408,6 +411,7 @@ def main() -> None:
     parser.add_argument("--render-output-dir", help="Optional directory for render validation artifacts")
     parser.add_argument("--check", choices=["structural", "layout", "visual"], default="structural", help="Structural checks by default; layout or visual rendering is opt-in")
     parser.add_argument("--export-pdf", action="store_true", help="Export PDF without implicitly generating page images")
+    parser.add_argument("--render-backend", choices=["auto", "word", "libreoffice", "wps"], default="auto")
     args = parser.parse_args()
     check_policy = CheckPolicy(args.check, args.export_pdf)
 
@@ -546,6 +550,8 @@ def main() -> None:
             "backend": None,
             "backendPath": None,
             "status": "skipped",
+            "rendered": False, "previewGenerated": False, "visualReviewed": False,
+            "visualReviewStatus": "not_requested", "unresolvedVisualIssues": [],
             "reason": "structural-only check; PDF and layout were not requested" if not check_policy.render else "render validator disabled by profile validators.yaml",
             "pdfPath": None,
             "pageCount": None,
@@ -565,6 +571,7 @@ def main() -> None:
             str(render_output_dir),
             analyze_layout=args.check != "structural",
             export_previews=args.check == "visual",
+            backend=args.render_backend,
         )
     render_validation["checkPolicy"] = check_policy.summary()
     # PDF text extraction may contain lone surrogate code points from
@@ -635,6 +642,16 @@ def main() -> None:
     if args.before_docx:
         before = parse_document(args.before_docx, template_docx=args.template_docx, rules_path=args.rules_yaml)
         report["diffReport"] = diff_audits(before, audit, plan=plan, execution_log=None)
+        from formatter_core.integrity import verify
+        # Only formatting-first normalization promises exact text preservation.
+        if (plan or {}).get("contentPolicy") == "exact":
+            report["contentIntegrity"] = verify(args.before_docx, args.docx)
+            structural_validation["issues"].extend(report["contentIntegrity"]["issues"])
+
+    from formatter_core.integrity import relationship_issues
+    broken_relationships = relationship_issues(args.docx)
+    if broken_relationships:
+        structural_validation["issues"].append({"type": "package_relationship_failure", "details": broken_relationships})
 
     report["checks"] = dict(structural_validation["checks"])
     report["checks"].update(rule_validation["checks"])
@@ -647,7 +664,7 @@ def main() -> None:
         "structuralPassed": not structural_validation["issues"],
         "rulePassed": not rule_validation["issues"],
         "visualPassed": not bool(visual_validation.get("issues")),
-        "renderPassed": render_validation.get("status") in {"ok", "skipped"},
+        "renderPassed": True if render_validation.get("status") == "ok" else None,
         "renderStatus": render_validation.get("status"),
         "qualityGatePassed": report["qualityGate"]["passed"],
         "hardFailureCount": report["qualityGate"]["hardFailureCount"],

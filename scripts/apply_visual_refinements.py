@@ -188,12 +188,20 @@ class RefinementEngine:
             if table is None:
                 entry["detail"] = "table_target_not_resolved"
                 return entry
+            protected = {"oMath", "oMathPara", "object", "pict", "anchor", "ins", "del", "sdt", "commentRangeStart", "commentRangeEnd", "commentReference"}
+            if any(node.tag.rsplit("}", 1)[-1] in protected for node in table.iter()):
+                entry["detail"] = "native_or_protected_region_requires_manual_review"
+                return entry
             handler = getattr(self, f"_do_{action_type}")
             return handler(table, action, entry)
 
         paragraph = self.resolve_paragraph(target)
         if paragraph is None:
             entry["detail"] = "paragraph_target_not_resolved_or_text_mismatch"
+            return entry
+        native = {"oMath", "oMathPara", "object", "pict", "anchor", "ins", "del", "commentRangeStart", "commentRangeEnd", "commentReference", "footnoteReference", "endnoteReference", "sectPr", "sdt"}
+        if any(node.tag.rsplit("}", 1)[-1] in native for node in paragraph.iter()):
+            entry["detail"] = "native_or_protected_region_requires_manual_review"
             return entry
         handler = getattr(self, f"_do_{action_type}")
         return handler(paragraph, action, entry)
@@ -365,6 +373,12 @@ class RefinementEngine:
 
 
 def apply_plan(input_docx: Path, output_docx: Path, plan: Dict[str, Any]) -> Dict[str, Any]:
+    if input_docx.resolve() == output_docx.resolve():
+        raise ValueError("Visual refinement must not overwrite its input")
+    if plan.get("candidateSha256"):
+        from formatter_core.workspace import file_digest
+        if plan["candidateSha256"] != file_digest(input_docx):
+            raise ValueError("Visual plan belongs to a different candidate")
     register_namespaces()
     with zipfile.ZipFile(input_docx) as zf:
         files = {name: zf.read(name) for name in zf.namelist()}

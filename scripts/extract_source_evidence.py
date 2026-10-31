@@ -25,6 +25,7 @@ HEADING_HINT_RE = re.compile(
 )
 MARKDOWN_HEADING_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<text>.+?)\s*$")
 MARKDOWN_IMAGE_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)\s*$")
+MARKDOWN_THEMATIC_BREAK_RE = re.compile(r"^(?:\*\s*){3,}$|^(?:-\s*){3,}$|^(?:_\s*){3,}$")
 
 
 def canonical_source_format(source: Path) -> str:
@@ -84,6 +85,18 @@ def extract_markdown_source_blocks(lines: List[str]) -> List[Dict[str, Any]]:
                     "sourceIndex": index,
                     "text": heading.group("text").strip(),
                     "level": len(heading.group("marks")),
+                    "sourceAnchor": {"kind": "line", "index": index},
+                }
+            )
+            index += 1
+            continue
+        if MARKDOWN_THEMATIC_BREAK_RE.fullmatch(stripped):
+            flush_paragraph()
+            blocks.append(
+                {
+                    "kind": "thematic_break",
+                    "sourceIndex": index,
+                    "text": stripped,
                     "sourceAnchor": {"kind": "line", "index": index},
                 }
             )
@@ -177,6 +190,7 @@ def make_line_entry(index: int, text: str) -> Dict[str, Any]:
         },
         "candidateHeading": bool(HEADING_HINT_RE.match(stripped) or markdown_heading),
         "markdownHeadingLevel": len(markdown_heading.group("marks")) if markdown_heading else None,
+        "candidateThematicBreak": bool(MARKDOWN_THEMATIC_BREAK_RE.fullmatch(stripped)),
         "normalizedText": semantic_stripped,
     }
 
@@ -209,8 +223,9 @@ def extract_text_evidence(source: Path) -> Dict[str, Any]:
     }
 
 
-def extract_docx_evidence(source: Path, template_docx: Optional[str], rules_yaml: Optional[str]) -> Dict[str, Any]:
-    audit = parse_document(str(source), template_docx=template_docx, rules_path=rules_yaml)
+def extract_docx_evidence(source: Path, template_docx: Optional[str], rules_yaml: Optional[str], *, audit: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if audit is None:
+        audit = parse_document(str(source), template_docx=template_docx, rules_path=rules_yaml)
     paragraph_evidence: List[Dict[str, Any]] = []
     for paragraph in audit.get("paragraphs") or []:
         text = str(paragraph.get("text") or "")

@@ -65,15 +65,17 @@ For the current Zhejiang A&F workflow:
   inside those two pages; this prohibition includes the thesis title as well as
   year, college, name, student ID, major/class, advisor/title, signature, and date
 - the TOC position is template-sensitive
-- the body header after the TOC is title-sensitive
+- missing body/abstract headers must be created with the configured school text;
+  shared parts must be isolated so template front pages remain unchanged
 - header border styling should be preserved from the template where possible
 
 These regions should not be normalized like ordinary thesis body paragraphs.
 
-If a future workflow supports front-page form filling, it must be a separate,
-explicitly requested operation with a user-supplied field map and before/after
-audit. It must never run as part of ordinary formatting or infer values from the
-body manuscript.
+Blank template fields are intentional preserved content, not missing thesis
+components. Do not propose form filling as a formatting repair. Compare protected
+XML subtrees and dependent assets after composition and any Word save, then view
+the rendered front pages. Missing front pages, unlike blank fields, must be
+reported and supplied from the original template within the formatting task.
 
 ## 7. Migration toward profile-managed resources
 

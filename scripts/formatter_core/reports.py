@@ -10,15 +10,23 @@ def write_summary(workspace: Workspace, manifest: dict[str, Any], deliverables: 
     summary = {
         "status": manifest.get("status"), "backend": manifest.get("backend", "word"),
         "projectName": workspace.project, "profile": workspace.profile,
-        "checkPolicy": manifest.get("checkPolicy"), "visualReviewed": False,
+        "checkPolicy": manifest.get("checkPolicy"), "visualReviewed": bool((manifest.get("visualAcceptance") or {}).get("visualReviewed", False)),
+        "deliveryStatus": manifest.get("deliveryStatus"),
+        "processingRoute": manifest.get("processingRoute"),
+        "visualAcceptance": manifest.get("visualAcceptance"),
+        "preservedRegions": manifest.get("preservedRegions") or [],
         "inputPreserved": file_digest(workspace.source) == manifest.get("inputSha256"),
         "qualityGate": manifest.get("qualityGate"),
+        "contentIntegrity": manifest.get("contentIntegrity"),
+        "assetPreservation": manifest.get("assetPreservation"),
         "deferredStructuralChanges": manifest.get("deferredStructuralChanges") or [],
         "semanticCorrections": manifest.get("semanticCorrections"),
         "formattingReview": manifest.get("formattingReview") or [],
+        "documentRequirements": manifest.get("documentRequirements"),
+        "documentRequirementsAfter": manifest.get("documentRequirementsAfter"),
         "deliverables": workspace.portable_paths(deliverables),
         "backendResults": workspace.portable_paths(manifest.get("backendResults") or {}),
-        "limitations": ["No Agent visual review was performed; structural checks do not certify pagination or appearance."],
+        "limitations": [] if (manifest.get("visualAcceptance") or {}).get("visualReviewed") else ["No Agent visual review was performed; structural checks do not certify pagination or appearance."],
     }
     if not summary["inputPreserved"]:
         raise RuntimeError("Original input changed during formatting")

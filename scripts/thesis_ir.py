@@ -13,7 +13,7 @@ from recover_numbering import analyze_candidates, extract_items_from_evidence
 
 KEYWORDS_SPLIT_RE = re.compile(r"[:：]\s*")
 ABSTRACT_HEADING_SET = {"摘要", "摘  要", "中文摘要"}
-REFERENCES_HEADING_RE = re.compile(r"^\s*(参考文献|References)(?:[（(].*?[)）])?\s*$")
+from formatter_core.sections import REFERENCES_HEADING_RE, front_label
 ACKNOWLEDGEMENTS_HEADING_SET = {"致谢", "致 谢", "Acknowledgements", "Acknowledgment"}
 NUMERIC_REFERENCE_LABEL_RE = re.compile(r"^(?:\[\s*(\d+)\s*\]|\d{1,3}[.)、])\s*")
 NUMERIC_CITATION_RE = re.compile(r"\[\s*\d+(?:\s*[-,，]\s*\d+)*\s*\]")
@@ -42,6 +42,8 @@ def extract_front_matter_from_text(evidence: Dict[str, Any]) -> Dict[str, Any]:
         text = normalize_text(item.get("normalizedText") or item.get("text"))
         if not text:
             continue
+        if evidence.get("sourceFormat") == "markdown" and item.get("candidateThematicBreak"):
+            continue
         text = re.sub(r"^#{1,6}\s+", "", text).strip()
         abstract_match = re.match(r"^(摘\s*要|中文摘要|Abstract)\s*(?:[:：]\s*(.*))?$", text, re.I)
         keyword_match = re.match(r"^(关键词|Key\s*words?)\s*[:：]\s*(.*)$", text, re.I)
@@ -60,7 +62,14 @@ def extract_front_matter_from_text(evidence: Dict[str, Any]) -> Dict[str, Any]:
             continue
         # An explicitly supplied English title directly before ABSTRACT is
         # recoverable; do not invent a translation or infer one from its body.
-        if seen_abstract and keywords["cn"] and active_language is None and not re.search(r"[\u4e00-\u9fff]", text):
+        if (
+            seen_abstract
+            and keywords["cn"]
+            and active_language is None
+            and not item.get("candidateThematicBreak")
+            and not re.fullmatch(r"(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}", text)
+            and not re.search(r"[\u4e00-\u9fff]", text)
+        ):
             following = next((normalize_text(candidate.get("normalizedText") or candidate.get("text"))
                               for candidate in lines[ordinal + 1:]
                               if normalize_text(candidate.get("normalizedText") or candidate.get("text"))), "")
@@ -134,13 +143,36 @@ def extract_front_matter_from_docx(evidence: Dict[str, Any]) -> Dict[str, Any]:
         confidence += 0.1
     if title:
         confidence += 0.1
+    # DOCX paragraph roles have contextual title recovery. Use those roles,
+    # including bilingual abstracts without punctuation, instead of guessing
+    # the first short non-heading line (often the author) as the thesis title.
+    titles = {"cn": None, "en": None}
+    abstracts = {"cn": None, "en": None}
+    keywords = {"cn": None, "en": None}
+    recovered_indexes = []
+    for item in paragraphs[:120]:
+        role = item.get("roleName") or (item.get("role") or {}).get("role")
+        text = normalize_text(item.get("text"))
+        if role in {"title_cn", "title_en"}:
+            titles[role[-2:]] = text
+            recovered_indexes.append(int(item["index"]))
+        label = front_label(text)
+        if label:
+            label_role, payload = label
+            language = "en" if label_role.endswith("en") else "cn"
+            if label_role.startswith("abstract"):
+                abstracts[language] = payload
+            else:
+                keywords[language] = payload
+            recovered_indexes.append(int(item["index"]))
     return {
-        "title": title,
-        "abstractCn": abstract_cn,
-        "abstractEn": None,
-        "keywordsCn": keywords_cn,
-        "keywordsEn": None,
-        "sourceBlocks": source_blocks,
+        "title": titles["cn"] or title,
+        "titleEn": titles["en"],
+        "abstractCn": abstracts["cn"] or abstract_cn,
+        "abstractEn": abstracts["en"],
+        "keywordsCn": keywords["cn"] or keywords_cn,
+        "keywordsEn": keywords["en"],
+        "sourceBlocks": sorted(set(source_blocks + recovered_indexes)),
         "confidence": round(min(confidence, 1.0), 2),
     }
 
@@ -405,6 +437,8 @@ def extract_references_section(evidence: Dict[str, Any]) -> Dict[str, Any]:
         text = normalize_text(item.get("text"))
         if not text:
             continue
+        if evidence.get("sourceFormat") == "markdown" and item.get("candidateThematicBreak"):
+            continue
         heading_text = re.sub(r"^#{1,6}\s+", "", text).strip()
         if heading_index is None and REFERENCES_HEADING_RE.match(heading_text):
             heading_index = index
@@ -413,10 +447,24 @@ def extract_references_section(evidence: Dict[str, Any]) -> Dict[str, Any]:
             if heading_text in ACKNOWLEDGEMENTS_HEADING_SET or heading_text.startswith("附录") or re.match(r"^#{1,6}\s+", text):
                 break
             entries.append({"kind": "reference_entry", "sourceIndex": index, "text": text})
+    detection = "heading" if heading_index is not None else "not_found"
+    if heading_index is None:
+        # A consecutive numbered bibliography with type markers is stronger
+        # evidence than a missed heading; do not mistake body [1] citations for it.
+        candidates = []
+        for item in items:
+            text = normalize_text(item.get("text"))
+            match = re.match(r"^\[\s*(\d+)\s*\]\s*.+\[(?:J|M|C|D|P|S|R|N|EB|DB)(?:/OL)?\]", text, re.I)
+            if match:
+                candidates.append((int(match.group(1)), item))
+        if len(candidates) >= 2 and [n for n, _ in candidates] == list(range(1, len(candidates) + 1)):
+            entries = [{"kind": "reference_entry", "sourceIndex": item.get("index"), "text": normalize_text(item.get("text"))} for _, item in candidates]
+            detection = "numbered_entries_fallback"
     return {
         "heading": "参考文献" if heading_index is not None else None,
         "headingSourceIndex": heading_index,
         "entries": entries,
+        "detection": detection,
     }
 
 
@@ -878,6 +926,9 @@ def build_semantic_blocks(
             role, confidence = "front_matter", float(front_matter.get("confidence") or 0.7)
         elif source_index in reference_entries:
             kind, role, confidence = "reference", "reference_entry", 0.92
+        elif source_index == reference_heading:
+            kind, role, confidence = "heading", "references_heading", 0.95
+            level = 1
         elif source_index in heading_map and evidence.get("sourceFormat") != "markdown":
             heading = heading_map[source_index]
             kind = "heading"
@@ -896,9 +947,6 @@ def build_semantic_blocks(
             text = normalize_text(caption.get("text") or text)
             role = str(caption.get("captionType") or "caption")
             confidence = float(caption.get("confidence") or 0.8)
-        elif source_index == reference_heading:
-            kind, role, confidence = "heading", "references_heading", 0.95
-            level = 1
         elif source_index == acknowledgement_heading:
             kind, role, confidence = "heading", "acknowledgements_heading", 0.95
             level = 1

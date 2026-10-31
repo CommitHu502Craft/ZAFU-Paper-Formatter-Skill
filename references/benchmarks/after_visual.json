@@ -1,0 +1,175 @@
+{
+  "label": "after-visual-serial",
+  "check": "visual",
+  "python": "3.12.12",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "notes": "Inclusive instrumented timings; cold=fresh case cache, warm=repeat process with shared template cache; OS disk cache not flushed. Missing stages were not executed. Times are not additive because parse/extract/validation overlap.",
+  "results": [
+    {
+      "case": "A_markdown",
+      "temperature": "cold",
+      "source": "tests/fixtures/unified_markdown/input.md",
+      "inputSha256": "5bf33828a90a0b915ec1de98191568a2b62876d3d394b924cda29cdd99cdf703",
+      "seconds": 12.368970300005458,
+      "exitCode": 0,
+      "externalProcesses": 4,
+      "stages": {
+        "semanticExtraction": {
+          "seconds": 0.003762000000278931,
+          "calls": 1
+        },
+        "docxBuild": {
+          "seconds": 0.07378130000142846,
+          "calls": 1
+        },
+        "docxParsing": {
+          "seconds": 2.243390699994052,
+          "calls": 3
+        },
+        "templateParsing": {
+          "seconds": 1.2175209000051836,
+          "calls": 1
+        },
+        "repairPlanning": {
+          "seconds": 0.05956560000049649,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 2.63515550000011,
+          "calls": 1
+        },
+        "pdfConversion": {
+          "seconds": 2.800067100004526,
+          "calls": 1
+        },
+        "pageRendering": {
+          "seconds": 0.9427862000011373,
+          "calls": 2
+        },
+        "finalValidation": {
+          "seconds": 5.774235099997895,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 2,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_en",
+                  "abstract_paragraph_en",
+                  "keywords_en"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    },
+    {
+      "case": "A_markdown",
+      "temperature": "warm",
+      "source": "tests/fixtures/unified_markdown/input.md",
+      "inputSha256": "5bf33828a90a0b915ec1de98191568a2b62876d3d394b924cda29cdd99cdf703",
+      "seconds": 11.376326400000835,
+      "exitCode": 0,
+      "externalProcesses": 4,
+      "stages": {
+        "semanticExtraction": {
+          "seconds": 0.003587400002288632,
+          "calls": 1
+        },
+        "docxBuild": {
+          "seconds": 0.07005039999785367,
+          "calls": 1
+        },
+        "docxParsing": {
+          "seconds": 1.0412732000040705,
+          "calls": 3
+        },
+        "repairPlanning": {
+          "seconds": 0.05065580000518821,
+          "calls": 1
+        },
+        "ooxmlWriting": {
+          "seconds": 3.015842699998757,
+          "calls": 1
+        },
+        "pdfConversion": {
+          "seconds": 3.2585132000021986,
+          "calls": 1
+        },
+        "pageRendering": {
+          "seconds": 0.8150206000063918,
+          "calls": 2
+        },
+        "finalValidation": {
+          "seconds": 5.6406389999974635,
+          "calls": 1
+        }
+      },
+      "status": "completed",
+      "qualityGate": {
+        "passed": true,
+        "hardFailureCount": 0,
+        "warningCount": 2,
+        "hardFailures": [],
+        "warnings": [
+          {
+            "type": "field_cache_needs_review",
+            "details": [
+              {
+                "part": "word/footer1.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              },
+              {
+                "part": "word/footer2.xml",
+                "kind": "duplicate_page_fields",
+                "count": 2
+              }
+            ]
+          },
+          {
+            "type": "front_matter_structure",
+            "details": [
+              {
+                "kind": "front_matter_missing_roles",
+                "roles": [
+                  "title_en",
+                  "abstract_paragraph_en",
+                  "keywords_en"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "visualRepairRounds": 0
+    }
+  ]
+}

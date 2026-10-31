@@ -1,5 +1,7 @@
 # Repair Architecture
 
+This document describes the retained repair engine. The default production workflow is now described in [Formatting-first architecture](formatting_first_architecture.md); Final quality requests visual acceptance and complex regions are protected locally.
+
 This project intentionally uses a narrow, conservative architecture.
 
 Goal:

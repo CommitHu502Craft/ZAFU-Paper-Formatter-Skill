@@ -16,7 +16,7 @@ from pypdf import PdfWriter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_docx_from_markdown import add_reference_paragraph_block
+from build_docx_from_markdown import add_reference_paragraph_block, emit_thesis_ir_text_block
 from extract_source_evidence import extract_text_evidence
 from thesis_ir import build_thesis_ir
 from formatter_backends.latex import build_project, compile_project, escape_text, render_inline
@@ -36,7 +36,9 @@ class FrontmatterTests(unittest.TestCase):
     def test_bilingual_abstracts_call_original_macros(self) -> None:
         result = self.prepare("# 测试论文\n\n# 摘要\n\n中文摘要。\n\n关键词：中文\n\n# Abstract\n\nEnglish summary.\n\nKeywords: English\n\n# 1 引言\n\n正文。", {"titleEn": "English title"})
         self.assertIn(r"\ZhAbstract{中文摘要。}{中文}", result["frontmatterTex"])
-        self.assertIn(r"\EnAbstract{English summary.}{English}", result["frontmatterTex"])
+        self.assertIn(r"\EnAbstract{{\thispagestyle{formatterabstract}", result["frontmatterTex"])
+        self.assertIn("English summary.", result["frontmatterTex"])
+        self.assertIn("English}", result["frontmatterTex"])
         self.assertEqual(result["frontmatterTex"].count(r"\customContent"), 1)
         self.assertNotIn("正文", result["frontmatterTex"])
         self.assertNotIn(r"\customCover", result["frontmatterTex"])
@@ -46,10 +48,61 @@ class FrontmatterTests(unittest.TestCase):
         result = self.prepare("测试论文\n\n摘要：中文摘要。\n\n关键词：测试\n\n1 引言\n\n正文。")
         self.assertIn(r"\ZhAbstract{中文摘要。}{测试}", result["frontmatterTex"])
 
+    def test_markdown_horizontal_rules_are_not_english_titles_or_body_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.md"
+            source.write_text(
+                "# 测试论文\n\n**摘要**：中文摘要。\n\n**关键词**：测试\n\n---\n\n"
+                "## 1 引言\n\n正文。\n\n---\n\n## 参考文献\n\n[1] 来源。",
+                encoding="utf-8",
+            )
+            evidence = extract_text_evidence(source)
+            thesis = build_thesis_ir(evidence)
+            prepared = prepare_frontmatter(thesis, {}, escape_text, lambda content, identifier: render_inline(content, [], identifier))
+            self.assertIsNone(thesis["frontMatter"]["titleEn"])
+            self.assertIn(r"\ZhAbstract{中文摘要。}{测试}", prepared["frontmatterTex"])
+            self.assertEqual(sum(block["kind"] == "thematic_break" for block in evidence["sourceBlocks"]), 2)
+
     def test_missing_cover_metadata_blocks_generation(self) -> None:
         result = self.prepare("# 论文\n\n# 1 引言\n\n正文。", {"cover": True})
         self.assertEqual(result["errors"][0]["kind"], "missing_cover_metadata")
         self.assertNotIn(r"\customCover", result["frontmatterTex"])
+
+    def test_explicit_blank_frontmatter_calls_both_original_macros(self) -> None:
+        result = self.prepare("# 论文\n\n## 1 引言\n\n正文。", {"cover": True, "statement": True, "allowBlankFrontmatter": True})
+        self.assertEqual(result["errors"], [])
+        self.assertIn(r"\customCover", result["frontmatterTex"])
+        self.assertIn(r"\makestatement", result["frontmatterTex"])
+        self.assertIn(r"\author{}", result["metadataTex"])
+        self.assertIn(r"\date{}", result["metadataTex"])
+        self.assertIn(r"\setsignature{}", result["metadataTex"])
+        self.assertTrue(result["warnings"])
+
+    def test_blank_frontmatter_still_requires_a_title(self) -> None:
+        result = self.prepare("# 论文\n\n正文。", {"title": "", "cover": True, "statement": True, "allowBlankFrontmatter": True})
+        self.assertTrue(result["errors"])
+        self.assertNotIn(r"\customCover", result["frontmatterTex"])
+
+    def test_level_one_body_chapters_do_not_collapse_subheadings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.md"
+            source.write_text("# 论文\n\n# 1 引言\n\n## 1.1 子节\n\n### 1.1.1 小节\n\n正文。", encoding="utf-8")
+            project = Path(directory) / "project"
+            with patch("formatter_backends.latex.install_external_class", return_value={"modified": False}):
+                build_project(build_thesis_ir(extract_text_evidence(source)), source, {}, ROOT / "profiles/zafu_2022", project)
+            tex = (project / "main.tex").read_text(encoding="utf-8")
+            self.assertIn(r"\section*{1 引言}", tex)
+            self.assertIn(r"\subsection*{1.1 子节}", tex)
+            self.assertIn(r"\subsubsection*{1.1.1 小节}", tex)
+
+    def test_trailing_rule_is_not_an_eleventh_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.md"
+            source.write_text("# 论文\n\n## 1 引言\n\n正文。\n\n## 参考文献（选录）\n\n[1] Source.\n\n---\n", encoding="utf-8")
+            thesis = build_thesis_ir(extract_text_evidence(source))
+            self.assertEqual(len(thesis["references"]["entries"]), 1)
+            self.assertEqual(thesis["semanticBlocks"][-1]["kind"], "thematic_break")
+            self.assertTrue(any(block["role"] == "references_heading" for block in thesis["semanticBlocks"]))
 
     def test_explicit_statement_is_unsigned_and_metadata_escaped(self) -> None:
         result = self.prepare("# 论文\n\n# 1 引言\n\n正文。", {"statement": True, "author": r"张\input{secret}", "date": "2026-10-01"})
@@ -70,7 +123,7 @@ class FrontmatterTests(unittest.TestCase):
     def test_frontmatter_removed_from_body_without_placeholder_expansion(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "input.md"
-            source.write_text("# 测试论文\n\n# 摘要\n\n唯一摘要。\n\n关键词：测试\n\n# 1 引言\n\n正文 @@METADATA@@。", encoding="utf-8")
+            source.write_text("# 测试论文\n\n# 摘要\n\n唯一摘要。\n\n关键词：测试\n\n---\n\n## 1 引言\n\n正文 @@METADATA@@。\n\n### 1.1 子节\n\n子节正文。", encoding="utf-8")
             project = Path(directory) / "project"
             with patch("formatter_backends.latex.install_external_class", return_value={"modified": False}):
                 report = build_project(build_thesis_ir(extract_text_evidence(source)), source, {}, ROOT / "profiles/zafu_2022", project)
@@ -80,6 +133,10 @@ class FrontmatterTests(unittest.TestCase):
             self.assertIn("正文 @@METADATA@@", tex)
             self.assertNotIn(r"\section*{摘要}", tex)
             self.assertNotIn(r"\makestatement", tex)
+            self.assertIn(r"\section*{1 引言}", tex)
+            self.assertIn(r"\subsection*{1.1 子节}", tex)
+            self.assertNotIn(r"\subsection*{1 引言}", tex)
+            self.assertNotIn("---", tex)
 
 
 class BibliographyTests(unittest.TestCase):
@@ -181,6 +238,12 @@ class BibliographyTests(unittest.TestCase):
 
 
 class WordReferenceTests(unittest.TestCase):
+    def test_word_discards_all_thematic_break_variants(self) -> None:
+        for marker in ("---", "***", "___", "- - -"):
+            document = Document()
+            emit_thesis_ir_text_block(document, {"kind": "thematic_break", "text": marker}, {})
+            self.assertEqual(document.paragraphs, [])
+
     def test_markdown_references_are_extracted_without_acknowledgements(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "input.md"

@@ -29,7 +29,7 @@ TEXT_ESCAPES = {
 MATH_COMMANDS = set("""
 frac dfrac tfrac sqrt left right big Big bigg Bigg bigl bigr Bigl Bigr
 sum prod int iint iiint oint lim log ln exp sin cos tan cot sec csc arcsin arccos arctan
-min max sup inf det gcd mod bmod pmod operatorname limits nolimits
+min max sup inf det gcd mod bmod pmod operatorname arg limits nolimits
 alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda
 mu nu xi pi varpi rho varrho sigma varsigma tau upsilon phi varphi chi psi omega
 Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega
@@ -72,6 +72,10 @@ def safe_math(expression: str) -> bool:
     return depth == 0
 
 
+def normalize_math(expression: str) -> str:
+    return re.sub(r"\\arg\s*\\max(?![A-Za-z])", lambda _: r"\operatorname{arg\,max}", expression)
+
+
 def render_inline(text: str, issues: list[dict[str, Any]], block_id: str, *, code_font: str = "monospace", break_code: bool = False) -> str:
     def prose(part: str) -> str:
         if not break_code:
@@ -81,12 +85,14 @@ def render_inline(text: str, issues: list[dict[str, Any]], block_id: str, *, cod
         cursor = 0
         for token_match in re.finditer(r"[A-Za-z][A-Za-z0-9_./=\-]{11,}|(?:FD|MD)\d+_vs_(?:FD|MD)\d+|[A-Za-z][A-Za-z0-9]*(?:/[A-Za-z0-9]+)+", part):
             pieces.append(escape_text(part[cursor:token_match.start()]))
-            token = token_match.group()
-            if re.search(r"[0-9_./=\-]|[a-z][A-Z]", token):
+            token = token_match.group().rstrip("./=-")
+            suffix = token_match.group()[len(token):]
+            if not re.fullmatch(r"[A-Za-z]+(?:-[A-Za-z]+)*", token) and re.search(r"[0-9_./=\-]|[a-z][A-Z]", token):
                 pieces.append("".join(escape_text(char) + (r"\allowbreak{}" if char in "_./=-" or len(token) > 12 and (i + 1) % 6 == 0 else "") for i, char in enumerate(token)))
             else:
                 # Ordinary English words keep TeX's linguistic hyphenation.
                 pieces.append(escape_text(token))
+            pieces.append(escape_text(suffix))
             cursor = token_match.end()
         pieces.append(escape_text(part[cursor:]))
         return "".join(pieces)
@@ -105,7 +111,7 @@ def render_inline(text: str, issues: list[dict[str, Any]], block_id: str, *, cod
             display = token.startswith(("$$", r"\["))
             expression = token[2:-2] if token.startswith(("$$", r"\(", r"\[")) else token[1:-1]
             if safe_math(expression):
-                chunks.append((r"\[" if display else r"\(") + expression + (r"\]" if display else r"\)"))
+                chunks.append((r"\[" if display else r"\(") + normalize_math(expression) + (r"\]" if display else r"\)"))
             else:
                 issues.append({"kind": "unsafe_or_unsupported_math", "blockId": block_id, "message": "Formula preserved as escaped text; unsupported TeX commands are never executed."})
                 chunks.append(escape_text(token))
@@ -291,6 +297,9 @@ def build_project(ir: dict[str, Any], source: Path, rules: dict[str, Any], profi
     content: list[str] = []
     block_index: list[dict[str, Any]] = []
     title = str((ir.get("frontMatter") or {}).get("title") or "")
+    body_headings = [block for block in blocks if str(block.get("role") or "").startswith("heading_")]
+    title_is_top_heading = any(block.get("role") == "front_matter" and block.get("kind") == "heading" and block.get("text") == title and int(block.get("level") or 1) == 1 for block in blocks)
+    heading_offset = int((ir.get("source") or {}).get("format") == "markdown" and title_is_top_heading and bool(body_headings) and all(int(block.get("level") or 1) > 1 for block in body_headings))
     toc_inserted = bool(frontmatter and frontmatter["tocInserted"])
     references_started = False
     bibliography_inserted = False
@@ -322,6 +331,9 @@ def build_project(ir: dict[str, Any], source: Path, rules: dict[str, Any], profi
         if role == "template_example":
             block_index.append({"blockId": block_id, "status": "excluded_template_example"})
             continue
+        if kind == "thematic_break":
+            block_index.append({"blockId": block_id, "status": "excluded_thematic_break", "sourceAnchor": block.get("sourceAnchor")})
+            continue
         if not toc_inserted and text != title:
             content.extend([r"\tableofcontents", r"\clearpage"])
             toc_inserted = True
@@ -352,12 +364,13 @@ def build_project(ir: dict[str, Any], source: Path, rules: dict[str, Any], profi
         elif kind == "equation":
             expression = re.sub(r"^\$\$|\$\$$", "", text.strip())
             if safe_math(expression):
-                rendered = r"\[" + expression + r"\]"
+                rendered = r"\[" + normalize_math(expression) + r"\]"
             else:
                 issues.append({"kind": "unsafe_or_unsupported_math", "blockId": block_id})
                 rendered = escape_text(text)
         elif kind == "heading":
             level = int(block.get("level") or 1)
+            level = max(1, level - heading_offset)
             heading = re.sub(r"^(?:\d+(?:\.\d+)*[.、]?\s+|第[一二三四五六七八九十百\d]+章\s*)", "", text)
             is_references = role == "references_heading" or heading.strip() == "参考文献"
             references_started = references_started or is_references

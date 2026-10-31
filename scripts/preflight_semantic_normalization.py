@@ -169,6 +169,10 @@ def extract_front_roles_from_thesis_ir(evidence: Dict[str, Any], thesis_ir: Dict
 def analyze_front_matter_docx(audit: Dict[str, Any], rules: Dict[str, Any]) -> Dict[str, Any]:
     detected_roles = extract_front_roles_from_docx(audit)
     issues = list((audit.get("frontMatterAnalysis") or {}).get("issues") or [])
+    from formatter_core.sections import inspect_requirements
+    requirements = inspect_requirements(audit, rules)
+    for missing in requirements["missing"]:
+        issues.append(make_issue("required_component_missing", "high", f"缺少{missing['label']}。", component=missing["key"]))
     paragraph_map = {item.get("index"): item for item in (audit.get("paragraphs") or [])}
     detected_lookup = {item["role"]: item for item in detected_roles}
 
@@ -254,6 +258,7 @@ def analyze_front_matter_docx(audit: Dict[str, Any], rules: Dict[str, Any]) -> D
     return {
         "expectedSequence": normalized_expected,
         "detectedSequence": detected_roles,
+        "requirements": requirements,
         "issues": issues,
     }
 
