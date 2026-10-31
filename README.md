@@ -1,12 +1,14 @@
-# 浙江农林大学本科毕业论文排版 Skill
+<h1 align="center">浙江农林大学本科毕业论文排版 Skill</h1>
 
-**论文写完了，别再被格式困住。**
+<p align="center"><strong>论文写完了，别再被格式困住。</strong></p>
+
+<p align="center">
+  <code>Python 3.11+</code> · <code>Word / LaTeX</code> · <code>ZAFU 2022</code> · <code>Apache-2.0</code>
+</p>
+
+<p align="center"><sub>本地 AI 助手调用的排版 Skill · 不是在线转换网站 · 独立社区项目</sub></p>
 
 把 `.docx`、Markdown 或 TXT 交给本地 AI 助手，按浙江农林大学（ZAFU）本科毕业论文规范整理成 Word、PDF 或 LaTeX 工程。标题层级、字体字号、页眉页码、目录、图表题注、公式和参考文献一次统一；原稿不动，结果另存。
-
-`Python 3.11+` · `Word / LaTeX` · `ZAFU 2022` · `Apache-2.0`
-
-> 这是一个由本地 AI 助手调用的 **Skill**，不是在线转换网站。项目为独立社区作品，不是学校官方工具。
 
 ## 30 秒了解
 
@@ -251,7 +253,7 @@ git diff --check
 
 提交截图或样稿前，请移除姓名、学号、联系方式、批注和未公开内容。
 
-如果这个项目帮你少折腾了一些格式，欢迎点个 Star，也欢迎转给正在准备毕业论文的同学。
+<p align="center">如果这个项目帮你少折腾了一些格式，欢迎点个 Star，也欢迎转给正在准备毕业论文的同学。</p>
 
 ## 声明
 
