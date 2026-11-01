@@ -1,6 +1,6 @@
 ---
 name: thesis-docx-formatter
-description: 中文本科毕业论文排版，默认浙江农林大学 ZAFU 规范。批量规范 DOCX，保留复杂原生对象，或从 Markdown/TXT 生成 Word、LaTeX 工程与 PDF。普通排版按正式交付流程生成预览并进行重点验收，快速草稿可跳过渲染。不用于普通文档或代码任务。
+description: 浙江农林大学（ZAFU）本科毕业论文排版，按 profile 支持其他学校规则。批量规范 DOCX，保留复杂原生对象，或从 Markdown/TXT 生成 Word、LaTeX 工程与 PDF。普通排版按正式交付流程生成预览并进行重点验收，快速草稿可跳过渲染。不用于普通文档或代码任务。
 ---
 
 # 毕业论文排版 Skill
