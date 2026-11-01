@@ -3,7 +3,10 @@
 <p align="center"><strong>论文写完了，别再被格式困住。</strong></p>
 
 <p align="center">
-  <code>Python 3.11+</code> · <code>Word / LaTeX</code> · <code>ZAFU 2022</code> · <code>Apache-2.0</code>
+  <a href="https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/CommitHu502Craft/ZAFU-Paper-Formatter-Skill?label=release&style=flat-square"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/CommitHu502Craft/ZAFU-Paper-Formatter-Skill?style=flat-square"></a>
+  <img alt="python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="format" src="https://img.shields.io/badge/format-Word%20%7C%20LaTeX-2F6F4E?style=flat-square">
 </p>
 
 <p align="center"><sub>本地 AI 助手调用的排版 Skill · 不是在线转换网站 · 独立社区项目</sub></p>
@@ -108,9 +111,20 @@
 
 ## 快速开始
 
+### 安装
+
+本 Skill 不是 pip / npm 包，安装就是把仓库放到 AI 助手能读取的位置：
+
+- **稳定版（推荐）**：从 [Releases](https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill/releases/latest) 下载源码压缩包，解压为 `thesis-docx-formatter` 目录。
+- **跟随最新提交**：`git clone https://github.com/CommitHu502Craft/ZAFU-Paper-Formatter-Skill.git`
+- **放到技能目录**：例如 `~/.claude/skills/thesis-docx-formatter`、`~/.dsh/skills/thesis-docx-formatter`；也可以直接在对话中指向解压目录里的 `SKILL.md`。
+- **锁定版本**：下载对应 tag 的压缩包即可固定版本；升级时替换目录，并查看 [CHANGELOG](CHANGELOG.md)。
+
+Release 不改变安装方式，它提供的是固定版本的下载包和更新说明；`main` 分支适合想跟最新改动的用户。
+
 ### 方式一：让 AI 助手来做（推荐）
 
-1. 下载或克隆本仓库；
+1. 按上面的安装步骤准备本仓库；
 2. 在能读取本地文件的 AI 助手中打开本项目，让它读取 `SKILL.md`；
 3. 告诉它论文路径和目标。
 
