@@ -242,6 +242,7 @@ thesis-output/<论文名>/<运行ID>/
 
 ```text
 SKILL.md              # AI 助手入口与工作流说明
+CHANGELOG.md          # 版本更新记录
 agents/               # 助手展示信息
 scripts/              # 统一入口、语义处理、Word / LaTeX 后端
 profiles/             # 学校配置（默认 zafu_2022）
